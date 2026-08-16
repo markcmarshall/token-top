@@ -1,0 +1,6 @@
+/ttop
+/dist/
+*.exe
+*.test
+*.out
+.DS_Store
