@@ -42,6 +42,17 @@ func TestUnknownFlag(t *testing.T) {
 	}
 }
 
+func TestOnceSnapshot(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"--once"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit %d stderr %q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "TOKEN TOP") {
+		t.Fatalf("stdout %q", stdout.String())
+	}
+}
+
 func TestUnexpectedArgument(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"extra"}, &stdout, &stderr)

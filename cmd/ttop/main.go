@@ -20,7 +20,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	_ = fs.Duration("interval", 2*time.Second, "refresh interval")
 	_ = fs.Bool("no-color", false, "disable ANSI color")
-	_ = fs.Bool("once", false, "print one snapshot and exit")
+	once := fs.Bool("once", false, "print one snapshot and exit")
 	showVersion := fs.Bool("version", false, "build version")
 	fs.Usage = func() {
 		fmt.Fprintf(stderr, "usage: ttop [flags]\n\n")
@@ -43,6 +43,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 
-	fmt.Fprintln(stderr, "ttop: engine not implemented yet")
+	if *once {
+		return runOnce(stdout)
+	}
+
+	fmt.Fprintln(stderr, "ttop: live TUI not implemented yet")
 	return 1
 }

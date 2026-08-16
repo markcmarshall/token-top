@@ -1,0 +1,4 @@
+{"timestamp":"2026-08-16T20:00:00.000Z","type":"session_meta","payload":{"id":"33333333-3333-3333-3333-333333333333","cwd":"/work/beta"}}
+{"timestamp":"2026-08-16T20:00:01.000Z","type":"turn_context","payload":{"model":"gpt-5.6-sol"}}
+{"timestamp":"2026-08-16T20:00:03.000Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":200,"output_tokens":20,"total_tokens":220},"total_token_usage":{"input_tokens":200,"output_tokens":20,"total_tokens":220}}}}
+{"timestamp":"2026-08-16T20:00:20.000Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":40,"output_tokens":8,"total_tokens":48},"total_token_usage":{"input_tokens":40,"output_tokens":8,"total_tokens":48}}}}
