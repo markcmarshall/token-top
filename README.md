@@ -4,7 +4,7 @@
 
 Open a terminal tab, glance, know what is burning.
 
-This is a small standalone utility carved out of an internal FounderOS need. It is not a ccusage competitor, not a hosted product, and not a claim that this category was invented here.
+There are many token tracking tools and apps out there, this is one I developed for my personal usage and solving my specific problems. It's intentionally very simple and serves a purpose similar to top/htop but for token usage.
 
 ```text
 go install github.com/markcmarshall/token-top/cmd/ttop@latest
@@ -30,9 +30,8 @@ Rates come from event timestamps in harness logs, not from screen refresh deltas
 - alerts, session control, or interactive drill-down
 - a daemon, config file, or theming system
 - Windows, remote hosts, or custom log paths
-- a public FounderOS integration
-
-Claude Code, Codex, and Grok are the v1 sources because they are the harnesses this tool was built to watch. Other providers may never be added.
+- 
+Claude Code, Codex, and Grok are the v1 sources because they are the harnesses this tool was built to watch. Other providers may be added later.
 
 ## Privacy
 
@@ -82,7 +81,7 @@ immutable snapshot
 responsive renderer
 ```
 
-The public module is the canonical core. FounderOS may consume it through a private attributor; this repository knows nothing about FounderOS, Postgres, claims, or project IDs.
+The public module is the canonical core. 
 
 ## Status
 
