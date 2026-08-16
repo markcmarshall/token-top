@@ -30,7 +30,7 @@ Rates come from event timestamps in harness logs, not from screen refresh deltas
 - alerts, session control, or interactive drill-down
 - a daemon, config file, or theming system
 - Windows, remote hosts, or custom log paths
-- 
+
 Claude Code, Codex, and Grok are the v1 sources because they are the harnesses this tool was built to watch. Other providers may be added later.
 
 ## Privacy
@@ -81,11 +81,11 @@ immutable snapshot
 responsive renderer
 ```
 
-The public module is the canonical core. 
+The public module is the canonical core.
 
 ## Status
 
-Repository skeleton only. The engine, source adapters, and TUI are not implemented yet.
+Canonical engine is in. Source adapters and the TUI are not.
 
 ## License
 
