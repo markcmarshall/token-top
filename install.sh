@@ -4,7 +4,7 @@
 set -eu
 
 REPO="markcmarshall/token-top"
-VERSION="${VERSION:-v1.0.1}"
+VERSION="${VERSION:-v1.0.2}"
 
 on_path() {
   case ":$PATH:" in

@@ -93,13 +93,14 @@ func (s *Source) Poll(ctx context.Context, now time.Time) telemetry.Batch {
 
 	remaining := s.budget
 	var bad, opened, unread, missing, todayUnread int
+	var incompleteToday bool
 	var loc, missingLoc string
 	for _, item := range discovered {
 		if err := ctx.Err(); err != nil {
 			break
 		}
 		if item.updates == "" {
-			if missingUpdatesDegraded(item.summary) {
+			if todayFile(item.mtime, now) && missingUpdatesDegraded(item.summary) {
 				missing++
 				if missingLoc == "" {
 					missingLoc = telemetry.LocateDetail("missing updates", item.dir, 0)
@@ -135,11 +136,16 @@ func (s *Source) Poll(ctx context.Context, now time.Time) telemetry.Batch {
 		}
 		opened++
 		remaining -= n
-		bad += b
-		if loc == "" {
-			loc = hit
+		if todayFile(item.mtime, now) {
+			bad += b
+			if loc == "" {
+				loc = hit
+			}
 		}
 		batch.Events = append(batch.Events, evs...)
+		if hasIncompleteToday(evs, now) {
+			incompleteToday = true
+		}
 		if reset {
 			s.resetFile(st)
 			batch.Health.State = telemetry.HealthDegraded
@@ -174,11 +180,16 @@ func (s *Source) Poll(ctx context.Context, now time.Time) telemetry.Batch {
 			continue
 		}
 		remaining -= n
-		bad += b
-		if loc == "" {
-			loc = hit
+		if todayFile(item.mtime, now) {
+			bad += b
+			if loc == "" {
+				loc = hit
+			}
 		}
 		batch.Events = append(batch.Events, evs...)
+		if hasIncompleteToday(evs, now) {
+			incompleteToday = true
+		}
 		if reset {
 			s.resetFile(st)
 			continue
@@ -199,7 +210,7 @@ func (s *Source) Poll(ctx context.Context, now time.Time) telemetry.Batch {
 				continue
 			}
 			st := s.files[item.updates]
-			if st != nil && !st.sawTurn {
+			if st != nil && !st.sawTurn && todayFile(item.mtime, now) {
 				missing++
 				if missingLoc == "" {
 					missingLoc = telemetry.LocateDetail("missing updates", item.dir, 0)
@@ -216,6 +227,13 @@ func (s *Source) Poll(ctx context.Context, now time.Time) telemetry.Batch {
 	}
 	if todayUnread > 0 {
 		batch.Health.TodayIncomplete = true
+	}
+	if incompleteToday {
+		batch.Health.State = telemetry.HealthDegraded
+		batch.Health.TodayIncomplete = true
+		if batch.Health.Detail == "" || batch.Health.Detail == "indexing" {
+			batch.Health.Detail = "incomplete usage"
+		}
 	}
 	if missing > 0 {
 		batch.Health.State = telemetry.HealthDegraded
@@ -402,6 +420,16 @@ func missingUpdatesDegraded(summaryPath string) bool {
 	}
 	numMessages, known, err := parseSummaryActivity(data)
 	return err != nil || !known || numMessages > 0
+}
+
+func hasIncompleteToday(events []telemetry.TokenEvent, now time.Time) bool {
+	today := telemetry.LocalDate(now)
+	for _, ev := range events {
+		if !ev.Complete && telemetry.LocalDate(ev.Timestamp) == today {
+			return true
+		}
+	}
+	return false
 }
 
 func rank(mtime, now time.Time) int {

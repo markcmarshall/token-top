@@ -21,6 +21,7 @@ type parsed struct {
 	Events     []telemetry.TokenEvent
 	Malformed  bool
 	Unexpected bool
+	Incomplete bool
 }
 
 type rawLine struct {
@@ -99,7 +100,7 @@ func (p *Parser) Consume(line []byte) parsed {
 		return parsed{}
 	}
 	if rec.Params.Update.Usage == nil {
-		return parsed{Unexpected: true}
+		return parsed{}
 	}
 	return p.turn(rec)
 }
@@ -133,7 +134,7 @@ func (p *Parser) turn(rec rawLine) parsed {
 		pieces = append(pieces, piece{model: p.Model, u: *u})
 	}
 
-	out := parsed{Unexpected: incomplete}
+	out := parsed{Incomplete: incomplete}
 	for _, pc := range pieces {
 		ev, bad := p.component(at, pc.model, pc.u, incomplete)
 		if bad {
@@ -160,7 +161,7 @@ func (p *Parser) component(at time.Time, model string, u rawUsage, incomplete bo
 	cacheRead := u.CachedReadTokens
 	cacheWrite := u.CacheCreationTokens
 	reasoning := u.ReasoningTokens
-	unexpected := incomplete
+	unexpected := false
 	if cacheRead != nil && *cacheRead > in {
 		cacheRead = nil
 		unexpected = true
@@ -185,7 +186,7 @@ func (p *Parser) component(at time.Time, model string, u rawUsage, incomplete bo
 		CacheRead:  cacheRead,
 		CacheWrite: cacheWrite,
 		Reasoning:  reasoning,
-		Complete:   !unexpected,
+		Complete:   !unexpected && !incomplete,
 	}
 	return &ev, unexpected
 }

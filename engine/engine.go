@@ -44,7 +44,7 @@ type Engine struct {
 	ring       []ringItem
 	sessions   map[sessionKey]*sessionState
 	health     map[telemetry.SourceName]telemetry.SourceHealth
-	incomplete map[telemetry.SourceName]bool
+	incomplete map[telemetry.SourceName]string
 }
 
 func New(clock Clock, attr attribution.Attributor) *Engine {
@@ -64,7 +64,7 @@ func New(clock Clock, attr attribution.Attributor) *Engine {
 		seen:       make(map[string]struct{}),
 		sessions:   make(map[sessionKey]*sessionState),
 		health:     health,
-		incomplete: make(map[telemetry.SourceName]bool),
+		incomplete: make(map[telemetry.SourceName]string),
 	}
 }
 
@@ -146,10 +146,13 @@ func (e *Engine) Apply(batch telemetry.Batch) {
 				h.State = telemetry.HealthNotDetected
 			}
 		}
-		if e.incomplete[src] && (h.State == telemetry.HealthOK || h.State == "") {
-			h.State = telemetry.HealthDegraded
-			if h.Detail == "" || h.Detail == "indexing" {
-				h.Detail = "incomplete usage"
+		if e.incomplete[src] == telemetry.LocalDate(now) {
+			h.TodayIncomplete = true
+			if h.State == telemetry.HealthOK || h.State == "" {
+				h.State = telemetry.HealthDegraded
+				if h.Detail == "" || h.Detail == "indexing" {
+					h.Detail = "incomplete usage"
+				}
 			}
 		}
 		e.health[src] = h
@@ -243,8 +246,14 @@ func (e *Engine) ingest(ev telemetry.TokenEvent, now time.Time) {
 	}
 	if !ev.Complete {
 		sess.sawIncomplete = true
-		e.incomplete[ev.Source] = true
-		e.degrade(ev.Source, "incomplete usage")
+		if telemetry.LocalDate(ev.Timestamp) == telemetry.LocalDate(now) {
+			e.incomplete[ev.Source] = telemetry.LocalDate(now)
+			h := e.health[ev.Source]
+			h.Source = ev.Source
+			h.TodayIncomplete = true
+			e.health[ev.Source] = h
+			e.degrade(ev.Source, "incomplete usage")
+		}
 	}
 
 	e.ring = append(e.ring, ringItem{event: ev})
@@ -349,7 +358,7 @@ func (e *Engine) Snapshot() Snapshot {
 			Rate5m:        ratePerMinute(win.tok5, Window5m),
 			Rate15m:       ratePerMinute(win.tok15, Window15m),
 			Total:         sess.lifetime,
-			TotalApprox:   srcHealth.Indexing,
+			TotalApprox:   srcHealth.Indexing || sess.sawIncomplete,
 			Input:         sess.input,
 			Output:        sess.output,
 			FirstEvent:    sess.firstEvent,

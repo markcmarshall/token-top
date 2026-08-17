@@ -45,6 +45,7 @@ func consumeEvents(t *testing.T, name string) parsed {
 		out.Events = append(out.Events, got.Events...)
 		out.Malformed = out.Malformed || got.Malformed
 		out.Unexpected = out.Unexpected || got.Unexpected
+		out.Incomplete = out.Incomplete || got.Incomplete
 	}
 	if err := sc.Err(); err != nil {
 		t.Fatal(err)
@@ -105,8 +106,8 @@ func TestMultiCallTurnOneEvent(t *testing.T) {
 
 func TestIncompleteUsageDegrades(t *testing.T) {
 	got := consumeEvents(t, "incomplete.jsonl")
-	if !got.Unexpected || len(got.Events) != 1 {
-		t.Fatalf("events=%d unexpected=%v", len(got.Events), got.Unexpected)
+	if got.Unexpected || !got.Incomplete || len(got.Events) != 1 {
+		t.Fatalf("events=%d unexpected=%v incomplete=%v", len(got.Events), got.Unexpected, got.Incomplete)
 	}
 	if got.Events[0].Complete {
 		t.Fatal("expected incomplete")
@@ -119,8 +120,16 @@ func TestIncompleteUsageDegrades(t *testing.T) {
 func TestMalformedSurroundedByValid(t *testing.T) {
 	p := Parser{SessionID: "11111111-1111-1111-1111-111111111111", CWD: "/work/delta", Model: "grok-4.6"}
 	_, bad, evs := consumeFile(t, "malformed.jsonl", p)
-	if bad != 2 || evs != 2 {
+	if bad != 1 || evs != 2 {
 		t.Fatalf("bad=%d events=%d", bad, evs)
+	}
+}
+
+func TestTurnCompletedWithoutUsageIsNotMalformed(t *testing.T) {
+	p := Parser{SessionID: "s", CWD: "/work", Model: "grok-4.6"}
+	got := p.Consume([]byte(`{"method":"_x.ai/session/update","timestamp":"2026-08-16T20:00:03.000Z","params":{"update":{"sessionUpdate":"turn_completed","stop_reason":"cancelled"}}}`))
+	if got.Malformed || got.Unexpected || got.Incomplete || len(got.Events) != 0 {
+		t.Fatalf("%+v", got)
 	}
 }
 

@@ -321,12 +321,38 @@ func TestIncompleteUsageDegradesButCounts(t *testing.T) {
 	if snap.Global.Today != 5 {
 		t.Fatalf("today %d", snap.Global.Today)
 	}
+	if !snap.Global.TodayApprox {
+		t.Fatal("incomplete current-day usage must mark today approximate")
+	}
 	if snap.Sources[2].Health.State != telemetry.HealthDegraded {
 		t.Fatalf("health %+v", snap.Sources[2].Health)
 	}
 	applyOne(eng, eventAt("ok", "s2", telemetry.SourceGrok, clk.Now(), 1, 0))
 	if eng.Snapshot().Sources[2].Health.State != telemetry.HealthDegraded {
 		t.Fatal("incomplete health should stick")
+	}
+}
+
+func TestArchivalIncompleteUsageMarksOnlySessionTotalApproximate(t *testing.T) {
+	clk := testClock()
+	eng := newTestEngine(clk)
+	ev := eventAt("old", "s", telemetry.SourceGrok, clk.Now().Add(-24*time.Hour), 3, 2)
+	ev.Complete = false
+	applyOne(eng, ev)
+	applyOne(eng, eventAt("current", "s", telemetry.SourceGrok, clk.Now(), 1, 0))
+	snap := eng.Snapshot()
+	if snap.Sources[2].Health.State != telemetry.HealthOK {
+		t.Fatalf("health %+v", snap.Sources[2].Health)
+	}
+	if snap.Global.TodayApprox {
+		t.Fatal("archival incompleteness must not mark today approximate")
+	}
+	if len(snap.Sessions) != 1 || !snap.Sessions[0].TotalApprox {
+		t.Fatalf("session lifetime should be approximate: %+v", snap.Sessions)
+	}
+	state := eng.sessions[sessionKey{source: telemetry.SourceGrok, id: "s"}]
+	if state == nil || !state.sawIncomplete {
+		t.Fatal("expected archival lifetime approximation to be retained")
 	}
 }
 

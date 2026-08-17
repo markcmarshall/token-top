@@ -13,7 +13,7 @@ curl -fsSL https://raw.githubusercontent.com/markcmarshall/token-top/main/instal
 Installs the release binary into the first writable directory already on PATH (`/opt/homebrew/bin`, `/usr/local/bin`, or `~/.local/bin`). If none of those are on PATH, it writes `~/.local/bin` and prints the one export to add. Override with `PREFIX` or `VERSION`.
 
 ```text
-go install github.com/markcmarshall/token-top/cmd/ttop@v1.0.1
+go install github.com/markcmarshall/token-top/cmd/ttop@v1.0.2
 ```
 
 For people who already install Go modules that way. It lands in `$(go env GOPATH)/bin`. Prebuilt binaries are also on the [releases](https://github.com/markcmarshall/token-top/releases) page.

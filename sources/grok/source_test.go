@@ -85,6 +85,23 @@ func TestPollIncompleteDegrades(t *testing.T) {
 	}
 }
 
+func TestPollArchivalIncompleteDoesNotDegradeCurrentHealth(t *testing.T) {
+	root := t.TempDir()
+	dir := writeSession(t, root, "33333333-3333-3333-3333-333333333334", "incomplete.jsonl", true)
+	old := time.Date(2026, 8, 16, 20, 0, 12, 0, time.UTC)
+	if err := os.Chtimes(filepath.Join(dir, "updates.jsonl"), old, old); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(filepath.Join(dir, "summary.json"), old, old); err != nil {
+		t.Fatal(err)
+	}
+	src := New(Options{Sessions: root})
+	batch := src.Poll(context.Background(), old.Add(48*time.Hour))
+	if batch.Health.State != telemetry.HealthOK || len(batch.Events) != 1 || batch.Events[0].Complete {
+		t.Fatalf("health=%+v events=%+v", batch.Health, batch.Events)
+	}
+}
+
 func TestPollMissingUpdatesDegrades(t *testing.T) {
 	root := t.TempDir()
 	writeSession(t, root, "44444444-4444-4444-4444-444444444444", "", true)
@@ -108,6 +125,25 @@ func TestPollMissingUpdatesWithPositiveActivityDegrades(t *testing.T) {
 	src := New(Options{Sessions: root})
 	batch := src.Poll(context.Background(), time.Date(2026, 8, 16, 20, 0, 12, 0, time.UTC))
 	if batch.Health.State != telemetry.HealthDegraded || !strings.Contains(batch.Health.Detail, "missing updates") {
+		t.Fatalf("health %+v", batch.Health)
+	}
+}
+
+func TestPollArchivalMissingUpdatesDoesNotDegradeCurrentHealth(t *testing.T) {
+	root := t.TempDir()
+	dir := writeSession(t, root, "44444444-4444-4444-4444-444444444447", "", true)
+	body := `{"info":{"id":"44444444-4444-4444-4444-444444444447","cwd":"/work/acme"},"current_model_id":"grok-4.6","num_messages":1}`
+	path := filepath.Join(dir, "summary.json")
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Date(2026, 8, 16, 20, 0, 12, 0, time.UTC)
+	if err := os.Chtimes(path, old, old); err != nil {
+		t.Fatal(err)
+	}
+	src := New(Options{Sessions: root})
+	batch := src.Poll(context.Background(), old.Add(48*time.Hour))
+	if batch.Health.State != telemetry.HealthOK {
 		t.Fatalf("health %+v", batch.Health)
 	}
 }
