@@ -58,6 +58,8 @@ type Session struct {
 	Rate15m       float64
 	Total         uint64
 	TotalApprox   bool
+	Input         uint64
+	Output        uint64
 	CacheRatio    *float64
 	FirstEvent    time.Time
 	LastEvent     time.Time

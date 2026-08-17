@@ -18,8 +18,8 @@ func main() {
 func run(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("ttop", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	_ = fs.Duration("interval", 2*time.Second, "refresh interval")
-	_ = fs.Bool("no-color", false, "disable ANSI color")
+	interval := fs.Duration("interval", 2*time.Second, "refresh interval")
+	noColor := fs.Bool("no-color", false, "disable ANSI color")
 	once := fs.Bool("once", false, "print one snapshot and exit")
 	showVersion := fs.Bool("version", false, "build version")
 	fs.Usage = func() {
@@ -43,10 +43,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 
-	if *once {
-		return runOnce(stdout)
+	tty := isTTY(stdout)
+	color := !*noColor && tty
+	if *once || !tty {
+		return snapshotOnce(stdout, color, *interval)
 	}
-
-	fmt.Fprintln(stderr, "ttop: live TUI not implemented yet")
-	return 1
+	return runLive(stdout, stderr, color, *interval)
 }

@@ -28,6 +28,8 @@ type sessionState struct {
 	todayDate     string
 	cacheRead     uint64
 	cacheReadIn   uint64
+	input         uint64
+	output        uint64
 	sawIncomplete bool
 }
 
@@ -49,7 +51,7 @@ func New(clock Clock, attr attribution.Attributor) *Engine {
 		clock = SystemClock{}
 	}
 	if attr == nil {
-		attr = attribution.Func(attribution.CWDBasename)
+		attr = attribution.Func(attribution.GitRoot)
 	}
 	health := make(map[telemetry.SourceName]telemetry.SourceHealth, len(telemetry.AllSources))
 	for _, name := range telemetry.AllSources {
@@ -171,9 +173,18 @@ func (e *Engine) ingest(ev telemetry.TokenEvent, now time.Time) {
 		sess.cacheReadIn = nextIn
 	}
 
+	nextIn, okIn := telemetry.AddUint64(sess.input, ev.Input)
+	nextOut, okOut := telemetry.AddUint64(sess.output, ev.Output)
+	if !okIn || !okOut {
+		e.degrade(ev.Source, "usage overflow")
+		return
+	}
+
 	e.seen[ev.ID] = struct{}{}
 	sess.lifetime = nextLife
 	sess.today = nextToday
+	sess.input = nextIn
+	sess.output = nextOut
 	if sess.firstEvent.IsZero() || ev.Timestamp.Before(sess.firstEvent) {
 		sess.firstEvent = ev.Timestamp
 	}
@@ -292,6 +303,8 @@ func (e *Engine) Snapshot() Snapshot {
 			Rate15m:       ratePerMinute(win.tok15, Window15m),
 			Total:         sess.lifetime,
 			TotalApprox:   srcHealth.Indexing,
+			Input:         sess.input,
+			Output:        sess.output,
 			FirstEvent:    sess.firstEvent,
 			LastEvent:     sess.lastEvent,
 		}

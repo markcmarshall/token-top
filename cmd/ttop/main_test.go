@@ -51,6 +51,23 @@ func TestOnceSnapshot(t *testing.T) {
 	if !strings.Contains(stdout.String(), "TOKEN TOP") {
 		t.Fatalf("stdout %q", stdout.String())
 	}
+	if strings.ContainsRune(stdout.String(), '\x1b') {
+		t.Fatal("non-tty --once emitted ANSI")
+	}
+}
+
+func TestNonTTYSnapshotWithoutOnce(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := run(nil, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit %d stderr %q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "TOKEN TOP") {
+		t.Fatalf("stdout %q", stdout.String())
+	}
+	if strings.ContainsRune(stdout.String(), '\x1b') {
+		t.Fatal("non-tty snapshot emitted ANSI")
+	}
 }
 
 func TestUnexpectedArgument(t *testing.T) {

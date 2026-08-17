@@ -1,0 +1,4 @@
+{"method":"session/update","timestamp":"2026-08-16T20:00:03.000Z","params":{"update":{"sessionUpdate":"turn_completed","usage":{"inputTokens":12,"outputTokens":2,"totalTokens":14,"modelUsage":{"grok-4.6":{"inputTokens":12,"outputTokens":2,"totalTokens":14}}}}}}
+{this is not json
+{"method":"session/update","timestamp":"2026-08-16T20:00:06.000Z","params":{"update":{"sessionUpdate":"turn_completed"}}}
+{"method":"session/update","timestamp":"2026-08-16T20:00:10.000Z","params":{"update":{"sessionUpdate":"turn_completed","usage":{"inputTokens":8,"outputTokens":1,"totalTokens":9,"modelUsage":{"grok-4.6":{"inputTokens":8,"outputTokens":1,"totalTokens":9}}}}}}
