@@ -6,11 +6,13 @@ Open a terminal tab, glance, know what is burning.
 
 This started as the internal token monitor used while building FounderOS, then was carved out as a small standalone MIT tool. It is not a ccusage competitor, a hosted service, or a rewrite of the old FounderOS console. FounderOS may consume this module privately; this repository knows nothing about FounderOS, claims, or Postgres.
 
+![Token Top snapshot](docs/screenshot.png)
+
 ```text
-go install github.com/markcmarshall/token-top/cmd/ttop@latest
+go install github.com/markcmarshall/token-top/cmd/ttop@v1.0.0
 ```
 
-Binary: `ttop`. Screen title: `TOKEN TOP`.
+Prebuilt `darwin`/`linux` `amd64`/`arm64` binaries are on the [releases](https://github.com/markcmarshall/token-top/releases) page. Binary: `ttop`. Screen title: `TOKEN TOP`.
 
 ## What it shows
 
@@ -23,15 +25,13 @@ Live trailing completed token usage for local agent sessions:
 
 Rates come from event timestamps in harness logs, not from screen refresh deltas. Tokens are directional workload counts. They are not money, quota, or normalized compute.
 
-## What it is not
+## Limitations
 
-- cost estimation
-- history, charts, or a dashboard
-- alerts, session control, or interactive drill-down
-- a daemon, config file, or theming system
-- Windows, remote hosts, or custom log paths
-
-Claude Code, Codex, and Grok are the v1 sources because they are the harnesses this tool was built to watch. Other providers may be added later.
+- Claude Code, Codex, and Grok only. No Windows, remote hosts, or custom log paths.
+- Passive: `q` and Ctrl-C quit. No sorting, filters, drill-down, or session control.
+- No cost, history, alerts, config file, or daemon.
+- Grok updates when a turn completes; missing update logs degrade that source instead of inventing zeros.
+- First-render lifetime totals may show `~` while older files are still indexing.
 
 ## Privacy
 
@@ -93,12 +93,6 @@ immutable snapshot
     ↓
 responsive renderer
 ```
-
-The public module is the canonical core.
-
-## Status
-
-Canonical engine, Claude, Codex, and Grok adapters, and the live TUI are in. `ttop` is the glanceable monitor; `ttop --once` prints one snapshot.
 
 ## License
 
