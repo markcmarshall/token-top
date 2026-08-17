@@ -1,0 +1,4 @@
+{"type":"assistant","timestamp":"2026-08-16T20:00:03.000Z","sessionId":"eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee","cwd":"/work/delta","message":{"id":"msg_ok1","model":"claude-sonnet-5","usage":{"input_tokens":4,"output_tokens":2}}}
+{this is not json
+{"type":"assistant","timestamp":"2026-08-16T20:00:06.000Z","sessionId":"eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee","cwd":"/work/delta","message":{"id":"msg_bad","model":"claude-sonnet-5","usage":{"cache_creation_input_tokens":9}}}
+{"type":"assistant","timestamp":"2026-08-16T20:00:10.000Z","sessionId":"eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee","cwd":"/work/delta","message":{"id":"msg_ok2","model":"claude-sonnet-5","usage":{"input_tokens":3,"output_tokens":1}}}

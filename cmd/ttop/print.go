@@ -7,6 +7,7 @@ import (
 	"math"
 
 	"github.com/markcmarshall/token-top/engine"
+	"github.com/markcmarshall/token-top/sources/claude"
 	"github.com/markcmarshall/token-top/sources/codex"
 	"github.com/markcmarshall/token-top/telemetry"
 )
@@ -14,8 +15,10 @@ import (
 func runOnce(stdout io.Writer) int {
 	clk := engine.SystemClock{}
 	eng := engine.New(clk, nil)
-	src := codex.New(codex.Options{})
-	eng.Apply(src.Poll(context.Background(), clk.Now()))
+	eng.Poll(context.Background(), []telemetry.Source{
+		claude.New(claude.Options{}),
+		codex.New(codex.Options{}),
+	})
 	printSnapshot(stdout, eng.Snapshot())
 	return 0
 }

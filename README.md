@@ -85,7 +85,7 @@ The public module is the canonical core.
 
 ## Status
 
-Canonical engine and Codex adapter are in. Claude, Grok, and the live TUI are not. `ttop --once` will snapshot local Codex sessions.
+Canonical engine, Codex, and Claude adapters are in. Grok and the live TUI are not. `ttop --once` snapshots local Codex and Claude sessions.
 
 ## License
 
