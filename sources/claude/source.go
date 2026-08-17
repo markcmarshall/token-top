@@ -12,7 +12,7 @@ import (
 	"github.com/markcmarshall/token-top/telemetry"
 )
 
-const defaultReadBudget = 4 << 20
+const defaultReadBudget = 2 << 20
 
 type Options struct {
 	Home       string

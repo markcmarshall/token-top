@@ -93,25 +93,23 @@ func (e *Engine) Poll(ctx context.Context, sources []telemetry.Source) {
 	}
 }
 
-// PollUntilToday polls until current-day totals are complete or ctx ends.
+// PollUntilToday takes at most two bounded polls so the first frame stays
+// inside the two-second render gate. Remaining today/history is indexed on
+// later live ticks.
 func (e *Engine) PollUntilToday(ctx context.Context, sources []telemetry.Source) Snapshot {
-	if _, ok := ctx.Deadline(); !ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, 2*time.Second)
-		defer cancel()
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	var snap Snapshot
-	for ctx.Err() == nil {
-		e.Poll(ctx, sources)
-		snap = e.Snapshot()
-		if !snap.Global.TodayApprox {
-			return snap
-		}
+	e.Poll(ctx, sources)
+	snap := e.Snapshot()
+	if !snap.Global.TodayApprox || ctx.Err() != nil {
+		return snap
 	}
-	if snap.GeneratedAt.IsZero() {
-		return e.Snapshot()
+	if dl, ok := ctx.Deadline(); ok && time.Until(dl) < 200*time.Millisecond {
+		return snap
 	}
-	return snap
+	e.Poll(ctx, sources)
+	return e.Snapshot()
 }
 
 func pollOne(ctx context.Context, src telemetry.Source, now time.Time) (batch telemetry.Batch) {

@@ -32,4 +32,6 @@ go test -race ./...
 CGO_ENABLED=0 go build -o /tmp/ttop ./cmd/ttop
 ```
 
+Consumer API: `github.com/markcmarshall/token-top/ttop`. Do not add FounderOS types there.
+
 Do not add linter or release frameworks. Keep fixtures free of real prompt, completion, tool, credential, and source-code content.

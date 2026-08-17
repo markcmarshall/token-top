@@ -11,31 +11,19 @@ import (
 	xterm "github.com/charmbracelet/x/term"
 
 	"github.com/markcmarshall/token-top/engine"
-	"github.com/markcmarshall/token-top/sources/claude"
-	"github.com/markcmarshall/token-top/sources/codex"
-	"github.com/markcmarshall/token-top/sources/grok"
-	"github.com/markcmarshall/token-top/telemetry"
+	"github.com/markcmarshall/token-top/ttop"
 	"github.com/markcmarshall/token-top/ui"
 )
 
-func defaultSources() []telemetry.Source {
-	return []telemetry.Source{
-		claude.New(claude.Options{}),
-		codex.New(codex.Options{}),
-		grok.New(grok.Options{}),
-	}
-}
-
 func snapshotOnce(stdout io.Writer, color bool, interval time.Duration) int {
 	clk := engine.SystemClock{}
-	eng := engine.New(clk, nil)
 	width, height := termSize(stdout)
 	if interval <= 0 {
 		interval = 2 * time.Second
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), interval)
 	defer cancel()
-	snap := eng.PollUntilToday(ctx, defaultSources())
+	snap := ttop.Snapshot(ctx, ttop.Options{Clock: clk})
 	fmt.Fprint(stdout, ui.Render(snap, ui.Options{
 		Width:    width,
 		Height:   height,
@@ -48,9 +36,9 @@ func snapshotOnce(stdout io.Writer, color bool, interval time.Duration) int {
 
 func runLive(stdout, stderr io.Writer, color bool, interval time.Duration) int {
 	clk := engine.SystemClock{}
-	eng := engine.New(clk, nil)
+	eng := ttop.New(ttop.Options{Clock: clk})
 	width, height := termSize(stdout)
-	m := ui.NewModel(eng, defaultSources(), interval, color, width, height)
+	m := ui.NewModel(eng, ttop.Sources(), interval, color, width, height)
 	p := tea.NewProgram(m, tea.WithOutput(stdout))
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(stderr, "ttop: %v\n", err)

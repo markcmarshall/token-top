@@ -65,6 +65,19 @@ ttop --interval 2s --no-color
 
 On a TTY, `ttop` runs a live alternate-screen monitor. `q` or Ctrl-C quits and restores the terminal. Non-TTY stdout is a plain snapshot, equivalent to `--once --no-color`.
 
+## Library
+
+The module is the canonical core. Inject attribution; do not fork the engine.
+
+```go
+import "github.com/markcmarshall/token-top/ttop"
+
+eng := ttop.New(ttop.Options{Attributor: myAttributor})
+snap := ttop.Snapshot(ctx, ttop.Options{Attributor: myAttributor})
+```
+
+`myAttributor` implements `attribution.Attributor`. Nil uses standalone git-root / CWD basename. Public types know nothing about FounderOS, Postgres, or claims.
+
 ## Architecture
 
 ```text
