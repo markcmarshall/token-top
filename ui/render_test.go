@@ -86,7 +86,7 @@ func TestRenderNarrowDropsModel(t *testing.T) {
 
 func TestRenderWideHasExtraColumns(t *testing.T) {
 	out := renderAt(t, 160, 24, false)
-	for _, want := range []string{"15M", "IN", "OUT", "AGE", "SID", "aaaaaaaa"} {
+	for _, want := range []string{"15M", "IN", "OUT", "LAST", "AGE", "SID", "aaaaaaaa"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("wide missing %q in\n%s", want, out)
 		}
@@ -153,6 +153,41 @@ func TestRenderFitsWidth(t *testing.T) {
 				t.Fatalf("width %d line %d is %d: %q", w, i, lipgloss.Width(line), line)
 			}
 		}
+	}
+}
+
+func TestRenderIndexingVisible(t *testing.T) {
+	snap := testSnap()
+	snap.Sources[1].Health.Indexing = true
+	out := Render(snap, Options{Width: 120, Height: 24, Now: snap.GeneratedAt, Interval: 2 * time.Second})
+	if !strings.Contains(out, "indexing") {
+		t.Fatalf("%s", out)
+	}
+	if strings.Contains(out, "CODEX !") && strings.Contains(out, "indexing") && strings.Contains(out, "CODEX ! indexing") {
+		t.Fatal("indexing should not look like failure")
+	}
+}
+
+func TestRenderTodayApprox(t *testing.T) {
+	snap := testSnap()
+	snap.Global.TodayApprox = true
+	out := Render(snap, Options{Width: 100, Height: 24, Now: snap.GeneratedAt, Interval: 2 * time.Second})
+	if !strings.Contains(out, "TODAY ~") {
+		t.Fatalf("%s", out)
+	}
+}
+
+func TestBarSharesDoesNotFillZeroShare(t *testing.T) {
+	got := barShares([]float64{0.27, 0.73, 0}, 48)
+	if got[2] != 0 {
+		t.Fatalf("zero share got %d: %v", got[2], got)
+	}
+	sum := got[0] + got[1] + got[2]
+	if sum > 48 {
+		t.Fatalf("overflow %d", sum)
+	}
+	if got[0] == 0 || got[1] == 0 {
+		t.Fatalf("positive shares collapsed %v", got)
 	}
 }
 

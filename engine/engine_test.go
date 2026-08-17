@@ -150,8 +150,19 @@ func TestQuietHiddenIgnoresOlderDays(t *testing.T) {
 	}
 }
 
+func TestTodayCountsUTCEventsOnLocalDay(t *testing.T) {
+	now := time.Date(2026, 8, 16, 20, 30, 0, 0, time.Local)
+	clk := &FixedClock{T: now}
+	eng := newTestEngine(clk)
+	ev := eventAt("e", "s", telemetry.SourceClaude, now.UTC(), 10, 0)
+	applyOne(eng, ev)
+	if eng.Snapshot().Global.Today != 10 {
+		t.Fatalf("today %d; local %s utc %s", eng.Snapshot().Global.Today, now, ev.Timestamp)
+	}
+}
+
 func TestLocalDayRollover(t *testing.T) {
-	loc := time.FixedZone("test", -8*3600)
+	loc := time.Local
 	clk := &FixedClock{T: time.Date(2026, 8, 16, 23, 55, 0, 0, loc)}
 	eng := newTestEngine(clk)
 	applyOne(eng, eventAt("e", "s", telemetry.SourceClaude, clk.Now(), 80, 20))
@@ -313,6 +324,10 @@ func TestIncompleteUsageDegradesButCounts(t *testing.T) {
 	if snap.Sources[2].Health.State != telemetry.HealthDegraded {
 		t.Fatalf("health %+v", snap.Sources[2].Health)
 	}
+	applyOne(eng, eventAt("ok", "s2", telemetry.SourceGrok, clk.Now(), 1, 0))
+	if eng.Snapshot().Sources[2].Health.State != telemetry.HealthDegraded {
+		t.Fatal("incomplete health should stick")
+	}
 }
 
 func TestInvalidEventDoesNotCount(t *testing.T) {
@@ -385,11 +400,19 @@ type fakeSource struct {
 	name  telemetry.SourceName
 	batch telemetry.Batch
 	boom  bool
+	delay time.Duration
 }
 
 func (s fakeSource) Name() telemetry.SourceName { return s.name }
 
-func (s fakeSource) Poll(context.Context, time.Time) telemetry.Batch {
+func (s fakeSource) Poll(ctx context.Context, _ time.Time) telemetry.Batch {
+	if s.delay > 0 {
+		select {
+		case <-time.After(s.delay):
+		case <-ctx.Done():
+			return telemetry.Batch{Health: telemetry.SourceHealth{Source: s.name, State: telemetry.HealthFailed, Detail: "timeout"}}
+		}
+	}
 	if s.boom {
 		panic("boom")
 	}
@@ -415,5 +438,51 @@ func TestPollIsolatesSourcePanic(t *testing.T) {
 	}
 	if snap.Sources[1].Health.State != telemetry.HealthFailed {
 		t.Fatalf("codex %+v", snap.Sources[1].Health)
+	}
+}
+
+func TestPollSourcesInParallel(t *testing.T) {
+	clk := testClock()
+	eng := newTestEngine(clk)
+	start := time.Now()
+	eng.Poll(context.Background(), []telemetry.Source{
+		fakeSource{
+			name:  telemetry.SourceClaude,
+			delay: 80 * time.Millisecond,
+			batch: telemetry.Batch{
+				Events: []telemetry.TokenEvent{eventAt("c", "s", telemetry.SourceClaude, clk.Now(), 1, 0)},
+				Health: telemetry.SourceHealth{Source: telemetry.SourceClaude, State: telemetry.HealthOK},
+			},
+		},
+		fakeSource{
+			name:  telemetry.SourceCodex,
+			delay: 80 * time.Millisecond,
+			batch: telemetry.Batch{
+				Events: []telemetry.TokenEvent{eventAt("x", "s", telemetry.SourceCodex, clk.Now(), 1, 0)},
+				Health: telemetry.SourceHealth{Source: telemetry.SourceCodex, State: telemetry.HealthOK},
+			},
+		},
+	})
+	if time.Since(start) > 150*time.Millisecond {
+		t.Fatalf("sources ran sequentially: %s", time.Since(start))
+	}
+	if eng.Snapshot().Global.Today != 2 {
+		t.Fatalf("today %d", eng.Snapshot().Global.Today)
+	}
+}
+
+func TestTodayApproxWhileIndexingToday(t *testing.T) {
+	clk := testClock()
+	eng := newTestEngine(clk)
+	eng.Apply(telemetry.Batch{
+		Events: []telemetry.TokenEvent{eventAt("e", "s", telemetry.SourceClaude, clk.Now(), 4, 0)},
+		Health: telemetry.SourceHealth{Source: telemetry.SourceClaude, State: telemetry.HealthOK, Indexing: true, TodayIncomplete: true},
+	})
+	snap := eng.Snapshot()
+	if !snap.Global.TodayApprox {
+		t.Fatal("today should be approx")
+	}
+	if snap.Global.Today != 4 {
+		t.Fatalf("today %d", snap.Global.Today)
 	}
 }

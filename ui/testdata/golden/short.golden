@@ -1,0 +1,12 @@
+ TOKEN TOP                                                                     20:32:14 · refresh 2s
+
+ BURN     1m 337k/m    5m 221k/m    15m 190k/m    TODAY 18.4M
+ ACTIVE   2 burning    1 recent     6 quiet hidden
+
+ CLAUDE ✓  92k/m  27%    CODEX ✓  245k/m  73%    GROK ✓  0  0%
+ ███████████████████████████████████████████████░
+
+ S  HARNESS  MODEL           PROJECT                 1M        5M     TOTAL   CACHE   LAST
+ ●  codex    gpt-5.6-sol     FounderOS           184k/m    121k/m      4.2M     78%     2s
++2 more recent
+ trailing completed usage · 6 quiet hidden · q quit

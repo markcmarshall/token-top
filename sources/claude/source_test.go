@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -194,6 +195,34 @@ func TestPollTailFirstThenHistNoDoubleCount(t *testing.T) {
 		if n != 1 {
 			t.Fatalf("id %s counted %d", id, n)
 		}
+	}
+}
+
+func TestPollFileReplacementDoesNotDoubleCount(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.jsonl")
+	writeCopy(t, path, "normal.jsonl")
+	src := New(Options{Projects: root})
+	now := time.Date(2026, 8, 16, 20, 0, 12, 0, time.UTC)
+	first := src.Poll(context.Background(), now)
+	if len(first.Events) != 2 {
+		t.Fatalf("first %d", len(first.Events))
+	}
+	writeCopy(t, path, "duplicate.jsonl")
+	second := src.Poll(context.Background(), now)
+	if second.Health.State != telemetry.HealthDegraded {
+		t.Fatalf("replace health %+v", second.Health)
+	}
+	if !strings.Contains(second.Health.Detail, "replaced") && !strings.Contains(second.Health.Detail, "malformed") && len(second.Events) > 2 {
+		t.Fatalf("events %d health %+v", len(second.Events), second.Health)
+	}
+	clk := &engine.FixedClock{T: now}
+	eng := engine.New(clk, nil)
+	eng.Apply(first)
+	eng.Apply(second)
+	// stable IDs from the first file must not inflate after replacement
+	if eng.Snapshot().Global.Today < 120 {
+		t.Fatalf("lost first file %d", eng.Snapshot().Global.Today)
 	}
 }
 

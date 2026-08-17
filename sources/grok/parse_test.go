@@ -93,6 +93,16 @@ func TestMultiModelTurnEmitsPerComponent(t *testing.T) {
 	}
 }
 
+func TestMultiCallTurnOneEvent(t *testing.T) {
+	got := consumeEvents(t, "multicall.jsonl")
+	if got.Malformed || got.Unexpected || len(got.Events) != 1 {
+		t.Fatalf("events=%d malformed=%v unexpected=%v", len(got.Events), got.Malformed, got.Unexpected)
+	}
+	if got.Events[0].Total() != 102 || got.Events[0].Model != "grok-4.6" {
+		t.Fatalf("%+v", got.Events[0])
+	}
+}
+
 func TestIncompleteUsageDegrades(t *testing.T) {
 	got := consumeEvents(t, "incomplete.jsonl")
 	if !got.Unexpected || len(got.Events) != 1 {
@@ -127,6 +137,16 @@ func TestParseSummary(t *testing.T) {
 	if err != nil || id != "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" || cwd != "/work/FounderOS" || model != "grok-4.6" {
 		t.Fatalf("%s %s %s %v", id, cwd, model, err)
 	}
+}
+
+func FuzzConsume(f *testing.F) {
+	f.Add([]byte(`{"method":"session/update","timestamp":"2026-08-16T20:00:03.000Z","params":{"update":{"sessionUpdate":"turn_completed","usage":{"inputTokens":1,"outputTokens":1}}}}`))
+	f.Add([]byte(`{"timestamp":1786920003}`))
+	f.Add([]byte(`not json`))
+	f.Fuzz(func(t *testing.T, line []byte) {
+		p := Parser{SessionID: "s"}
+		_ = p.Consume(line)
+	})
 }
 
 func TestStableIDs(t *testing.T) {

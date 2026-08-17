@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -89,7 +90,7 @@ func TestPollMissingUpdatesDegrades(t *testing.T) {
 	writeSession(t, root, "44444444-4444-4444-4444-444444444444", "", true)
 	src := New(Options{Sessions: root})
 	batch := src.Poll(context.Background(), time.Date(2026, 8, 16, 20, 0, 12, 0, time.UTC))
-	if batch.Health.State != telemetry.HealthDegraded || batch.Health.Detail != "missing updates" {
+	if batch.Health.State != telemetry.HealthDegraded || !strings.Contains(batch.Health.Detail, "missing updates") {
 		t.Fatalf("health %+v", batch.Health)
 	}
 	if len(batch.Events) != 0 {

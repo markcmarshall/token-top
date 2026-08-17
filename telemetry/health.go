@@ -10,8 +10,9 @@ const (
 )
 
 type SourceHealth struct {
-	Source   SourceName
-	State    HealthState
-	Detail   string
-	Indexing bool
+	Source          SourceName
+	State           HealthState
+	Detail          string
+	Indexing        bool
+	TodayIncomplete bool
 }

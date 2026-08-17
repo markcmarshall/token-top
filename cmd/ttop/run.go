@@ -8,7 +8,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"golang.org/x/term"
+	xterm "github.com/charmbracelet/x/term"
 
 	"github.com/markcmarshall/token-top/engine"
 	"github.com/markcmarshall/token-top/sources/claude"
@@ -30,10 +30,13 @@ func snapshotOnce(stdout io.Writer, color bool, interval time.Duration) int {
 	clk := engine.SystemClock{}
 	eng := engine.New(clk, nil)
 	width, height := termSize(stdout)
+	if interval <= 0 {
+		interval = 2 * time.Second
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), interval)
 	defer cancel()
-	eng.Poll(ctx, defaultSources())
-	fmt.Fprint(stdout, ui.Render(eng.Snapshot(), ui.Options{
+	snap := eng.PollUntilToday(ctx, defaultSources())
+	fmt.Fprint(stdout, ui.Render(snap, ui.Options{
 		Width:    width,
 		Height:   height,
 		Now:      clk.Now(),
@@ -73,7 +76,7 @@ func termSize(w io.Writer) (int, int) {
 	if !ok {
 		return 80, 24
 	}
-	width, height, err := term.GetSize(int(f.Fd()))
+	width, height, err := xterm.GetSize(f.Fd())
 	if err != nil || width <= 0 {
 		return 80, 24
 	}

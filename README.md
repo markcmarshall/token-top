@@ -4,7 +4,7 @@
 
 Open a terminal tab, glance, know what is burning.
 
-There are many token tracking tools and apps out there, this is one I developed for my personal usage and solving my specific problems. It's intentionally very simple and serves a purpose similar to top/htop but for token usage.
+This started as the internal token monitor used while building FounderOS, then was carved out as a small standalone MIT tool. It is not a ccusage competitor, a hosted service, or a rewrite of the old FounderOS console. FounderOS may consume this module privately; this repository knows nothing about FounderOS, claims, or Postgres.
 
 ```text
 go install github.com/markcmarshall/token-top/cmd/ttop@latest

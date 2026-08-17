@@ -24,6 +24,7 @@ type Poller struct {
 	mu      sync.Mutex
 	engine  *engine.Engine
 	sources []telemetry.Source
+	startup bool
 }
 
 func NewModel(eng *engine.Engine, sources []telemetry.Source, interval time.Duration, color bool, width, height int) Model {
@@ -37,7 +38,7 @@ func NewModel(eng *engine.Engine, sources []telemetry.Source, interval time.Dura
 		height = 24
 	}
 	return Model{
-		poller:   &Poller{engine: eng, sources: sources},
+		poller:   &Poller{engine: eng, sources: sources, startup: true},
 		interval: interval,
 		color:    color,
 		width:    width,
@@ -66,6 +67,10 @@ func (p *Poller) Snapshot(timeout time.Duration) engine.Snapshot {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+	if p.startup {
+		p.startup = false
+		return p.engine.PollUntilToday(ctx, p.sources)
+	}
 	p.engine.Poll(ctx, p.sources)
 	return p.engine.Snapshot()
 }

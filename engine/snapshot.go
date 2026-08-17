@@ -29,12 +29,13 @@ type Snapshot struct {
 }
 
 type Global struct {
-	Rate1m  float64
-	Rate5m  float64
-	Rate15m float64
-	Today   uint64
-	Burning int
-	Recent  int
+	Rate1m      float64
+	Rate5m      float64
+	Rate15m     float64
+	Today       uint64
+	TodayApprox bool
+	Burning     int
+	Recent      int
 }
 
 type SourceSnapshot struct {

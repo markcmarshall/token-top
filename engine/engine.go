@@ -44,6 +44,7 @@ type Engine struct {
 	ring       []ringItem
 	sessions   map[sessionKey]*sessionState
 	health     map[telemetry.SourceName]telemetry.SourceHealth
+	incomplete map[telemetry.SourceName]bool
 }
 
 func New(clock Clock, attr attribution.Attributor) *Engine {
@@ -63,14 +64,54 @@ func New(clock Clock, attr attribution.Attributor) *Engine {
 		seen:       make(map[string]struct{}),
 		sessions:   make(map[sessionKey]*sessionState),
 		health:     health,
+		incomplete: make(map[telemetry.SourceName]bool),
 	}
 }
 
 func (e *Engine) Poll(ctx context.Context, sources []telemetry.Source) {
 	now := e.clock.Now()
-	for _, src := range sources {
-		e.Apply(pollOne(ctx, src, now))
+	if len(sources) == 0 {
+		return
 	}
+	type item struct {
+		i int
+		b telemetry.Batch
+	}
+	ch := make(chan item, len(sources))
+	for i, src := range sources {
+		go func(i int, src telemetry.Source) {
+			ch <- item{i: i, b: pollOne(ctx, src, now)}
+		}(i, src)
+	}
+	batches := make([]telemetry.Batch, len(sources))
+	for range sources {
+		it := <-ch
+		batches[it.i] = it.b
+	}
+	for _, b := range batches {
+		e.Apply(b)
+	}
+}
+
+// PollUntilToday polls until current-day totals are complete or ctx ends.
+func (e *Engine) PollUntilToday(ctx context.Context, sources []telemetry.Source) Snapshot {
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+	}
+	var snap Snapshot
+	for ctx.Err() == nil {
+		e.Poll(ctx, sources)
+		snap = e.Snapshot()
+		if !snap.Global.TodayApprox {
+			return snap
+		}
+	}
+	if snap.GeneratedAt.IsZero() {
+		return e.Snapshot()
+	}
+	return snap
 }
 
 func pollOne(ctx context.Context, src telemetry.Source, now time.Time) (batch telemetry.Batch) {
@@ -105,6 +146,12 @@ func (e *Engine) Apply(batch telemetry.Batch) {
 				h.State = telemetry.HealthOK
 			} else {
 				h.State = telemetry.HealthNotDetected
+			}
+		}
+		if e.incomplete[src] && (h.State == telemetry.HealthOK || h.State == "") {
+			h.State = telemetry.HealthDegraded
+			if h.Detail == "" || h.Detail == "indexing" {
+				h.Detail = "incomplete usage"
 			}
 		}
 		e.health[src] = h
@@ -146,13 +193,13 @@ func (e *Engine) ingest(ev telemetry.TokenEvent, now time.Time) {
 		return
 	}
 
-	todayDate := localDate(now)
+	todayDate := telemetry.LocalDate(now)
 	if sess.todayDate != todayDate {
 		sess.today = 0
 		sess.todayDate = todayDate
 	}
 	var nextToday uint64
-	if localDate(ev.Timestamp) == todayDate {
+	if telemetry.LocalDate(ev.Timestamp) == todayDate {
 		nextToday, ok = telemetry.AddUint64(sess.today, total)
 		if !ok {
 			e.degrade(ev.Source, "usage overflow")
@@ -198,6 +245,7 @@ func (e *Engine) ingest(ev telemetry.TokenEvent, now time.Time) {
 	}
 	if !ev.Complete {
 		sess.sawIncomplete = true
+		e.incomplete[ev.Source] = true
 		e.degrade(ev.Source, "incomplete usage")
 	}
 
@@ -260,12 +308,13 @@ func (e *Engine) Snapshot() Snapshot {
 	}
 
 	var today uint64
+	var todayApprox bool
 	var burning, recent, quietHidden int
 	visible := make([]Session, 0, len(e.sessions))
 	for key, sess := range e.sessions {
-		if sess.todayDate != localDate(now) {
+		if sess.todayDate != telemetry.LocalDate(now) {
 			sess.today = 0
-			sess.todayDate = localDate(now)
+			sess.todayDate = telemetry.LocalDate(now)
 		}
 		today = satAdd(today, sess.today)
 
@@ -343,6 +392,9 @@ func (e *Engine) Snapshot() Snapshot {
 			h = telemetry.SourceHealth{Source: name, State: telemetry.HealthNotDetected}
 		}
 		h.Source = name
+		if h.TodayIncomplete {
+			todayApprox = true
+		}
 		win := bySource[name]
 		if win == nil {
 			win = &acc{}
@@ -363,12 +415,13 @@ func (e *Engine) Snapshot() Snapshot {
 	return Snapshot{
 		GeneratedAt: now,
 		Global: Global{
-			Rate1m:  globalRate1,
-			Rate5m:  ratePerMinute(global.tok5, Window5m),
-			Rate15m: ratePerMinute(global.tok15, Window15m),
-			Today:   today,
-			Burning: burning,
-			Recent:  recent,
+			Rate1m:      globalRate1,
+			Rate5m:      ratePerMinute(global.tok5, Window5m),
+			Rate15m:     ratePerMinute(global.tok15, Window15m),
+			Today:       today,
+			TodayApprox: todayApprox,
+			Burning:     burning,
+			Recent:      recent,
 		},
 		Sources:     sources,
 		Sessions:    visible,
@@ -377,7 +430,7 @@ func (e *Engine) Snapshot() Snapshot {
 }
 
 func (e *Engine) rollToday(now time.Time) {
-	today := localDate(now)
+	today := telemetry.LocalDate(now)
 	for _, sess := range e.sessions {
 		if sess.todayDate != today {
 			sess.today = 0
@@ -417,10 +470,6 @@ func (e *Engine) degrade(src telemetry.SourceName, detail string) {
 		h.Detail = detail
 	}
 	e.health[src] = h
-}
-
-func localDate(t time.Time) string {
-	return t.Format("2006-01-02")
 }
 
 func ratePerMinute(tokens uint64, window time.Duration) float64 {

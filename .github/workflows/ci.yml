@@ -29,3 +29,12 @@ jobs:
 
       - name: go build
         run: CGO_ENABLED=0 go build -o /tmp/ttop ./cmd/ttop
+
+      - name: target builds
+        run: |
+          set -eu
+          for pair in darwin/amd64 darwin/arm64 linux/amd64 linux/arm64; do
+            os="${pair%/*}"
+            arch="${pair#*/}"
+            CGO_ENABLED=0 GOOS="${os}" GOARCH="${arch}" go build -o /tmp/ttop-"${os}"-"${arch}" ./cmd/ttop
+          done

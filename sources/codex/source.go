@@ -99,7 +99,8 @@ func (s *Source) Poll(ctx context.Context, now time.Time) telemetry.Batch {
 	})
 
 	remaining := s.budget
-	var bad, opened, unread int
+	var bad, opened, unread, todayUnread int
+	var loc string
 	for _, item := range discovered {
 		if err := ctx.Err(); err != nil {
 			break
@@ -112,28 +113,40 @@ func (s *Source) Poll(ctx context.Context, now time.Time) telemetry.Batch {
 		if remaining <= 0 {
 			if !jsonl.FullyConsumed(st.live) || st.hist != nil {
 				unread++
+				if todayFile(item.mtime, now) {
+					todayUnread++
+				}
 			}
 			continue
 		}
-		n, b, evs, samples, reset, err := s.readInto(st, &st.live, &st.liveParser, remaining)
+		n, b, evs, samples, reset, hit, err := s.readInto(st, &st.live, &st.liveParser, remaining)
 		if err != nil {
 			bad++
+			if loc == "" {
+				loc = telemetry.LocateDetail("unreadable", item.path, 0)
+			}
 			continue
 		}
 		opened++
 		remaining -= n
 		bad += b
+		if loc == "" {
+			loc = hit
+		}
 		batch.Events = append(batch.Events, evs...)
 		batch.ContextSamples = append(batch.ContextSamples, samples...)
 		if reset {
 			s.resetFile(st)
 			batch.Health.State = telemetry.HealthDegraded
 			if batch.Health.Detail == "" {
-				batch.Health.Detail = "session file replaced"
+				batch.Health.Detail = telemetry.LocateDetail("session file replaced", item.path, 0)
 			}
 		}
 		if !jsonl.FullyConsumed(st.live) || st.hist != nil {
 			unread++
+			if todayFile(item.mtime, now) {
+				todayUnread++
+			}
 		}
 	}
 	for _, item := range discovered {
@@ -144,13 +157,19 @@ func (s *Source) Poll(ctx context.Context, now time.Time) telemetry.Batch {
 		if st == nil || st.hist == nil {
 			continue
 		}
-		n, b, evs, samples, reset, err := s.readInto(st, st.hist, &st.histParser, remaining)
+		n, b, evs, samples, reset, hit, err := s.readInto(st, st.hist, &st.histParser, remaining)
 		if err != nil {
 			bad++
+			if loc == "" {
+				loc = telemetry.LocateDetail("unreadable", item.path, 0)
+			}
 			continue
 		}
 		remaining -= n
 		bad += b
+		if loc == "" {
+			loc = hit
+		}
 		batch.Events = append(batch.Events, evs...)
 		batch.ContextSamples = append(batch.ContextSamples, samples...)
 		if reset {
@@ -161,6 +180,9 @@ func (s *Source) Poll(ctx context.Context, now time.Time) telemetry.Batch {
 			st.hist = nil
 		} else {
 			unread++
+			if todayFile(item.mtime, now) {
+				todayUnread++
+			}
 		}
 	}
 
@@ -170,9 +192,14 @@ func (s *Source) Poll(ctx context.Context, now time.Time) telemetry.Batch {
 			batch.Health.Detail = "indexing"
 		}
 	}
+	if todayUnread > 0 {
+		batch.Health.TodayIncomplete = true
+	}
 	if bad > 0 {
 		batch.Health.State = telemetry.HealthDegraded
-		if batch.Health.Detail == "" || batch.Health.Detail == "indexing" {
+		if loc != "" {
+			batch.Health.Detail = loc
+		} else if batch.Health.Detail == "" || batch.Health.Detail == "indexing" {
 			batch.Health.Detail = "malformed records"
 		}
 	}
@@ -219,19 +246,22 @@ func (s *Source) resetFile(st *fileState) {
 	*st = fileState{path: st.path}
 }
 
-func (s *Source) readInto(st *fileState, cur *jsonl.Cursor, p *Parser, budget int64) (read int64, bad int, events []telemetry.TokenEvent, samples []telemetry.ContextSample, reset bool, err error) {
+func (s *Source) readInto(st *fileState, cur *jsonl.Cursor, p *Parser, budget int64) (read int64, bad int, events []telemetry.TokenEvent, samples []telemetry.ContextSample, reset bool, loc string, err error) {
 	res, err := jsonl.Read(st.path, *cur, budget)
 	if err != nil {
-		return 0, 1, nil, nil, false, err
+		return 0, 1, nil, nil, false, telemetry.LocateDetail("unreadable", st.path, cur.Offset), err
 	}
 	*cur = res.Cursor
 	if res.Reset {
-		return res.Read, 0, nil, nil, true, nil
+		return res.Read, 0, nil, nil, true, "", nil
 	}
 	for _, line := range res.Lines {
 		ev, sample, malformed := p.Consume(line)
 		if malformed {
 			bad++
+			if loc == "" {
+				loc = telemetry.LocateDetail("malformed records", st.path, cur.Offset)
+			}
 			continue
 		}
 		if ev != nil {
@@ -241,7 +271,7 @@ func (s *Source) readInto(st *fileState, cur *jsonl.Cursor, p *Parser, budget in
 			samples = append(samples, *sample)
 		}
 	}
-	return res.Read, bad, events, samples, false, nil
+	return res.Read, bad, events, samples, false, loc, nil
 }
 
 type discoveredFile struct {
@@ -291,14 +321,14 @@ func rank(mtime, now time.Time) int {
 	if !mtime.Before(now.Add(-15 * time.Minute)) {
 		return 0
 	}
-	if localDate(mtime) == localDate(now) {
+	if telemetry.LocalDate(mtime) == telemetry.LocalDate(now) {
 		return 1
 	}
 	return 2
 }
 
-func localDate(t time.Time) string {
-	return t.Format("2006-01-02")
+func todayFile(mtime, now time.Time) bool {
+	return rank(mtime, now) <= 1
 }
 
 func dirExists(path string) bool {

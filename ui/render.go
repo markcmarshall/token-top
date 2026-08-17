@@ -106,7 +106,7 @@ func renderBurn(snap engine.Snapshot, s styles) string {
 		s.bright.Render(formatRate(snap.Global.Rate1m)),
 		formatRate(snap.Global.Rate5m),
 		formatRate(snap.Global.Rate15m),
-		formatCount(snap.Global.Today, false),
+		formatCount(snap.Global.Today, snap.Global.TodayApprox),
 	)
 }
 
@@ -127,6 +127,9 @@ func renderHarness(snap engine.Snapshot, s styles) string {
 			formatRate(src.Rate1m),
 			share,
 		)
+		if src.Health.Indexing {
+			part += "  " + s.dim.Render("indexing")
+		}
 		parts = append(parts, part)
 	}
 	return " " + strings.Join(parts, "    ")
@@ -143,31 +146,55 @@ func renderBar(snap engine.Snapshot, width int, s styles) string {
 	if snap.Global.Rate1m <= 0 {
 		return " " + s.dim.Render(strings.Repeat("░", barW))
 	}
+	shares := make([]float64, len(snap.Sources))
+	for i, src := range snap.Sources {
+		shares[i] = src.Share1m
+	}
+	widths := barShares(shares, barW)
 	var b strings.Builder
 	b.WriteByte(' ')
 	used := 0
 	for i, src := range snap.Sources {
-		n := int(src.Share1m * float64(barW))
-		if src.Share1m > 0 && n == 0 {
-			n = 1
-		}
-		if i == len(snap.Sources)-1 {
-			n = barW - used
-		}
-		if n < 0 {
-			n = 0
-		}
-		if used+n > barW {
-			n = barW - used
-		}
+		n := widths[i]
 		used += n
-		seg := strings.Repeat("█", n)
-		b.WriteString(s.source(src.Name, true).Render(seg))
+		if n > 0 {
+			b.WriteString(s.source(src.Name, true).Render(strings.Repeat("█", n)))
+		}
 	}
 	if used < barW {
 		b.WriteString(s.dim.Render(strings.Repeat("░", barW-used)))
 	}
 	return b.String()
+}
+
+func barShares(shares []float64, width int) []int {
+	n := make([]int, len(shares))
+	used := 0
+	for i, s := range shares {
+		if s <= 0 {
+			continue
+		}
+		raw := int(s * float64(width))
+		if raw == 0 {
+			raw = 1
+		}
+		n[i] = raw
+		used += raw
+	}
+	for used > width {
+		idx := -1
+		for i, v := range n {
+			if v > 1 && (idx < 0 || v > n[idx]) {
+				idx = i
+			}
+		}
+		if idx < 0 {
+			break
+		}
+		n[idx]--
+		used--
+	}
+	return n
 }
 
 func renderHealthDetails(snap engine.Snapshot, s styles) []string {
@@ -191,10 +218,10 @@ func tableHeader(tier Tier) string {
 		return fmt.Sprintf(" %s  %s  %s  %s  %s  %s",
 			"S", padRight("H", 3), padRight("PROJECT", 12), padLeft("1M", 8), padLeft("TOTAL", 8), padLeft("LAST", 5))
 	case TierWide:
-		return fmt.Sprintf(" %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s",
+		return fmt.Sprintf(" %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s",
 			"S", padRight("HARNESS", 7), padRight("MODEL", 14), padRight("PROJECT", 16),
 			padLeft("1M", 8), padLeft("5M", 8), padLeft("15M", 8), padLeft("TOTAL", 8),
-			padLeft("IN", 8), padLeft("OUT", 8), padLeft("CACHE", 6), padLeft("AGE", 5), padLeft("SID", 8))
+			padLeft("IN", 8), padLeft("OUT", 8), padLeft("CACHE", 6), padLeft("LAST", 5), padLeft("AGE", 5), padLeft("SID", 8))
 	default:
 		return fmt.Sprintf(" %s  %s  %s  %s  %s  %s  %s  %s  %s",
 			"S", padRight("HARNESS", 7), padRight("MODEL", 14), padRight("PROJECT", 16),
@@ -228,7 +255,7 @@ func renderRow(row engine.Session, tier Tier, opt Options, s styles) string {
 		if row.ModelCount > 1 {
 			model = fmt.Sprintf("%s +%d", model, row.ModelCount-1)
 		}
-		return fmt.Sprintf(" %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s",
+		return fmt.Sprintf(" %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s",
 			state,
 			hs.Render(padRight(harnessLabel(row.Source, true), 7)),
 			padRight(trunc(model, 14), 14),
@@ -240,6 +267,7 @@ func renderRow(row engine.Session, tier Tier, opt Options, s styles) string {
 			padLeft(formatCount(row.Input, false), 8),
 			padLeft(formatCount(row.Output, false), 8),
 			padLeft(formatPct(row.CacheRatio), 6),
+			padLeft(last, 5),
 			padLeft(formatAge(opt.Now, row.FirstEvent), 5),
 			padLeft(shortSession(row.SessionID), 8),
 		)

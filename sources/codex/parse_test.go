@@ -133,6 +133,16 @@ func TestSessionIDFromPath(t *testing.T) {
 	}
 }
 
+func FuzzConsume(f *testing.F) {
+	f.Add([]byte(`{"timestamp":"2026-08-16T20:00:03.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":1,"output_tokens":1}}}}`))
+	f.Add([]byte(`{`))
+	f.Add([]byte(`not json`))
+	f.Fuzz(func(t *testing.T, line []byte) {
+		p := Parser{SessionID: "s"}
+		_, _, _ = p.Consume(line)
+	})
+}
+
 func TestStableIDsAcrossRescan(t *testing.T) {
 	a, _, _ := consumeFile(t, "normal.jsonl", "")
 	b, _, _ := consumeFile(t, "normal.jsonl", "")
