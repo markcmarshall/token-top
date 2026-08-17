@@ -7,10 +7,16 @@ Open a terminal tab, glance, know what is burning.
 ![Token Top snapshot](docs/screenshot.png)
 
 ```text
+curl -fsSL https://raw.githubusercontent.com/markcmarshall/token-top/main/install.sh | sh
+```
+
+Installs the release binary into the first writable directory already on PATH (`/opt/homebrew/bin`, `/usr/local/bin`, or `~/.local/bin`). If none of those are on PATH, it writes `~/.local/bin` and prints the one export to add. Override with `PREFIX` or `VERSION`.
+
+```text
 go install github.com/markcmarshall/token-top/cmd/ttop@v1.0.0
 ```
 
-Prebuilt `darwin`/`linux` `amd64`/`arm64` binaries are on the [releases](https://github.com/markcmarshall/token-top/releases) page. Command: `ttop`.
+For people who already install Go modules that way. It lands in `$(go env GOPATH)/bin`. Prebuilt binaries are also on the [releases](https://github.com/markcmarshall/token-top/releases) page.
 
 ## What it shows
 
