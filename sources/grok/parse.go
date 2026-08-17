@@ -53,8 +53,9 @@ type summaryFile struct {
 		ID  string `json:"id"`
 		CWD string `json:"cwd"`
 	} `json:"info"`
-	CurrentModel string `json:"current_model_id"`
-	GitRoot      string `json:"git_root_dir"`
+	CurrentModel string  `json:"current_model_id"`
+	GitRoot      string  `json:"git_root_dir"`
+	NumMessages  *uint64 `json:"num_messages"`
 }
 
 func ParseSummary(data []byte) (sessionID, cwd, model string, err error) {
@@ -70,6 +71,17 @@ func ParseSummary(data []byte) (sessionID, cwd, model string, err error) {
 		cwd = filepath.Clean(s.GitRoot)
 	}
 	return sessionID, cwd, s.CurrentModel, nil
+}
+
+func parseSummaryActivity(data []byte) (numMessages uint64, known bool, err error) {
+	var s summaryFile
+	if err = json.Unmarshal(data, &s); err != nil {
+		return 0, false, err
+	}
+	if s.NumMessages == nil {
+		return 0, false, nil
+	}
+	return *s.NumMessages, true, nil
 }
 
 func (p *Parser) Consume(line []byte) parsed {

@@ -98,6 +98,34 @@ func TestPollMissingUpdatesDegrades(t *testing.T) {
 	}
 }
 
+func TestPollMissingUpdatesWithPositiveActivityDegrades(t *testing.T) {
+	root := t.TempDir()
+	dir := writeSession(t, root, "44444444-4444-4444-4444-444444444445", "", true)
+	body := `{"info":{"id":"44444444-4444-4444-4444-444444444445","cwd":"/work/acme"},"current_model_id":"grok-4.6","num_messages":1}`
+	if err := os.WriteFile(filepath.Join(dir, "summary.json"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	src := New(Options{Sessions: root})
+	batch := src.Poll(context.Background(), time.Date(2026, 8, 16, 20, 0, 12, 0, time.UTC))
+	if batch.Health.State != telemetry.HealthDegraded || !strings.Contains(batch.Health.Detail, "missing updates") {
+		t.Fatalf("health %+v", batch.Health)
+	}
+}
+
+func TestPollMissingUpdatesWithZeroActivityIsHealthy(t *testing.T) {
+	root := t.TempDir()
+	dir := writeSession(t, root, "44444444-4444-4444-4444-444444444446", "", true)
+	body := `{"info":{"id":"44444444-4444-4444-4444-444444444446","cwd":"/work/acme"},"current_model_id":"grok-4.6","num_messages":0}`
+	if err := os.WriteFile(filepath.Join(dir, "summary.json"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	src := New(Options{Sessions: root})
+	batch := src.Poll(context.Background(), time.Date(2026, 8, 16, 20, 0, 12, 0, time.UTC))
+	if batch.Health.State != telemetry.HealthOK {
+		t.Fatalf("health %+v", batch.Health)
+	}
+}
+
 func TestPollDegradesOnMalformed(t *testing.T) {
 	root := t.TempDir()
 	writeSession(t, root, "55555555-5555-5555-5555-555555555555", "malformed.jsonl", true)

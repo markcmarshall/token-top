@@ -99,9 +99,11 @@ func (s *Source) Poll(ctx context.Context, now time.Time) telemetry.Batch {
 			break
 		}
 		if item.updates == "" {
-			missing++
-			if missingLoc == "" {
-				missingLoc = telemetry.LocateDetail("missing updates", item.dir, 0)
+			if missingUpdatesDegraded(item.summary) {
+				missing++
+				if missingLoc == "" {
+					missingLoc = telemetry.LocateDetail("missing updates", item.dir, 0)
+				}
 			}
 			continue
 		}
@@ -338,6 +340,7 @@ func (s *Source) readInto(st *fileState, cur *jsonl.Cursor, budget int64) (read 
 
 type discoveredSession struct {
 	dir     string
+	summary string
 	updates string
 	mtime   time.Time
 }
@@ -371,6 +374,8 @@ func (s *Source) discover() ([]discoveredSession, error) {
 		}
 		if name == "updates.jsonl" {
 			item.updates = path
+		} else {
+			item.summary = path
 		}
 		if info.ModTime().After(item.mtime) {
 			item.mtime = info.ModTime()
@@ -385,6 +390,18 @@ func (s *Source) discover() ([]discoveredSession, error) {
 		out = append(out, *item)
 	}
 	return out, firstErr
+}
+
+func missingUpdatesDegraded(summaryPath string) bool {
+	if summaryPath == "" {
+		return true
+	}
+	data, err := os.ReadFile(summaryPath)
+	if err != nil {
+		return true
+	}
+	numMessages, known, err := parseSummaryActivity(data)
+	return err != nil || !known || numMessages > 0
 }
 
 func rank(mtime, now time.Time) int {
