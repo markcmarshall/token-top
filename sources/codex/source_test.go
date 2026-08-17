@@ -53,7 +53,7 @@ func TestPollNormalAndEngine(t *testing.T) {
 	if snap.Global.Burning != 1 || snap.Sessions[0].Source != telemetry.SourceCodex {
 		t.Fatalf("snap %+v", snap)
 	}
-	if snap.Sessions[0].ProjectLabel != "FounderOS" {
+	if snap.Sessions[0].ProjectLabel != "acme" {
 		t.Fatalf("project %q", snap.Sessions[0].ProjectLabel)
 	}
 }

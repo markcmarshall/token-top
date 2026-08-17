@@ -53,7 +53,7 @@ func TestPollNormalAndEngine(t *testing.T) {
 	if snap.Global.Burning != 1 || snap.Sessions[0].Source != telemetry.SourceClaude {
 		t.Fatalf("snap %+v", snap)
 	}
-	if snap.Sessions[0].ProjectLabel != "FounderOS" {
+	if snap.Sessions[0].ProjectLabel != "acme" {
 		t.Fatalf("project %q", snap.Sessions[0].ProjectLabel)
 	}
 }
@@ -166,10 +166,10 @@ func TestPollTailFirstThenHistNoDoubleCount(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 0; i < 20; i++ {
-		f.WriteString(`{"type":"user","timestamp":"2026-08-16T19:00:00.000Z","sessionId":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","cwd":"/work/FounderOS","message":{"role":"user"}}` + "\n")
+		f.WriteString(`{"type":"user","timestamp":"2026-08-16T19:00:00.000Z","sessionId":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","cwd":"/work/acme","message":{"role":"user"}}` + "\n")
 	}
-	f.WriteString(`{"type":"assistant","timestamp":"2026-08-16T19:50:00.000Z","sessionId":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","cwd":"/work/FounderOS","message":{"id":"msg_old","model":"claude-opus-4.8","usage":{"input_tokens":100,"output_tokens":20}}}` + "\n")
-	f.WriteString(`{"type":"assistant","timestamp":"2026-08-16T20:00:10.000Z","sessionId":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","cwd":"/work/FounderOS","message":{"id":"msg_new","model":"claude-opus-4.8","usage":{"input_tokens":5,"output_tokens":3}}}` + "\n")
+	f.WriteString(`{"type":"assistant","timestamp":"2026-08-16T19:50:00.000Z","sessionId":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","cwd":"/work/acme","message":{"id":"msg_old","model":"claude-opus-4.8","usage":{"input_tokens":100,"output_tokens":20}}}` + "\n")
+	f.WriteString(`{"type":"assistant","timestamp":"2026-08-16T20:00:10.000Z","sessionId":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","cwd":"/work/acme","message":{"id":"msg_new","model":"claude-opus-4.8","usage":{"input_tokens":5,"output_tokens":3}}}` + "\n")
 	f.Close()
 	src := New(Options{Projects: root, ReadBudget: 500, TailAfter: 250})
 	now := time.Date(2026, 8, 16, 20, 0, 12, 0, time.UTC)

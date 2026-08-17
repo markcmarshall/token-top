@@ -8,7 +8,7 @@
  GROK ! telemetry incomplete
 
  S  HARNESS  MODEL           PROJECT                 1M        5M     TOTAL   CACHE   LAST
- ●  codex    gpt-5.6-sol     FounderOS           184k/m    121k/m      4.2M     78%     2s
- ●  claude   opus-4.8        Inference Secur…     92k/m     76k/m      2.7M             5s
- ·  grok     grok-4.6        Wear the Singul…         0     18k/m      1.1M            54s
+ ●  codex    gpt-5.6-sol     acme                184k/m    121k/m      4.2M     78%     2s
+ ●  claude   opus-4.8        payments             92k/m     76k/m      2.7M             5s
+ ·  grok     grok-4.6        website                  0     18k/m      1.1M            54s
  trailing completed usage · 6 quiet hidden · q quit

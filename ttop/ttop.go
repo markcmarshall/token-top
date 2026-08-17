@@ -1,8 +1,7 @@
-// Package ttop is the stable v1 consumer API.
+// Package ttop is the library API for the token-top engine.
 //
-// FounderOS (or any other integrator) should import this package, inject an
-// [attribution.Attributor], and compose snapshots or a live loop from the
-// returned engine. The public module has no FounderOS, Postgres, or claim types.
+// Import this package, optionally inject an [attribution.Attributor],
+// and compose snapshots or a live loop from the returned engine.
 package ttop
 
 import (
@@ -17,9 +16,9 @@ import (
 	"github.com/markcmarshall/token-top/telemetry"
 )
 
-// Options configure a consumer-built engine.
+// Options configure the engine.
 type Options struct {
-	// Attributor labels events. Nil uses standalone git-root / CWD basename.
+	// Attributor labels events. Nil uses git-root / CWD basename.
 	Attributor attribution.Attributor
 	// Clock is the injected clock. Nil uses the system clock.
 	Clock engine.Clock
@@ -34,7 +33,7 @@ func Sources() []telemetry.Source {
 	}
 }
 
-// New builds an engine that FounderOS can poll with [Sources] or its own set.
+// New builds an engine. Poll it with [Sources] or a custom set.
 func New(opt Options) *engine.Engine {
 	return engine.New(opt.Clock, opt.Attributor)
 }

@@ -19,7 +19,7 @@ func writeSession(t *testing.T, root, id, fixture string, summary bool) string {
 		t.Fatal(err)
 	}
 	if summary {
-		body := `{"info":{"id":"` + id + `","cwd":"/work/FounderOS"},"current_model_id":"grok-4.6"}`
+		body := `{"info":{"id":"` + id + `","cwd":"/work/acme"},"current_model_id":"grok-4.6"}`
 		if err := os.WriteFile(filepath.Join(dir, "summary.json"), []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -60,7 +60,7 @@ func TestPollNormalAndEngine(t *testing.T) {
 	if snap.Global.Today != 165 {
 		t.Fatalf("today %d", snap.Global.Today)
 	}
-	if snap.Sessions[0].Source != telemetry.SourceGrok || snap.Sessions[0].ProjectLabel != "FounderOS" {
+	if snap.Sessions[0].Source != telemetry.SourceGrok || snap.Sessions[0].ProjectLabel != "acme" {
 		t.Fatalf("snap %+v", snap.Sessions)
 	}
 }

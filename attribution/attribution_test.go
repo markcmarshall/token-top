@@ -9,8 +9,8 @@ import (
 )
 
 func TestCWDBasename(t *testing.T) {
-	got := CWDBasename(telemetry.TokenEvent{CWD: "/work/FounderOS"})
-	if got.Label != "FounderOS" || got.Method != "cwd" {
+	got := CWDBasename(telemetry.TokenEvent{CWD: "/work/acme"})
+	if got.Label != "acme" || got.Method != "cwd" {
 		t.Fatalf("%+v", got)
 	}
 	unknown := CWDBasename(telemetry.TokenEvent{CWD: ""})
@@ -21,7 +21,7 @@ func TestCWDBasename(t *testing.T) {
 
 func TestGitRootUsesRepoBasename(t *testing.T) {
 	root := t.TempDir()
-	repo := filepath.Join(root, "FounderOS")
+	repo := filepath.Join(root, "acme")
 	sub := filepath.Join(repo, "cmd", "ttop")
 	if err := os.MkdirAll(filepath.Join(repo, ".git"), 0o755); err != nil {
 		t.Fatal(err)
@@ -30,7 +30,7 @@ func TestGitRootUsesRepoBasename(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := GitRoot(telemetry.TokenEvent{CWD: sub})
-	if got.Label != "FounderOS" || got.Method != "git" {
+	if got.Label != "acme" || got.Method != "git" {
 		t.Fatalf("%+v", got)
 	}
 	if got.Key != repo {

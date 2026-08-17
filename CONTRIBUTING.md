@@ -21,7 +21,6 @@ Not welcome:
 - costing, history, dashboards, alerts, or session control
 - configuration, themes, or interactive navigation
 - Windows, remote collection, or custom log-path flags
-- FounderOS-specific catalog or claim logic
 
 ## Checks
 
@@ -32,6 +31,6 @@ go test -race ./...
 CGO_ENABLED=0 go build -o /tmp/ttop ./cmd/ttop
 ```
 
-Consumer API: `github.com/markcmarshall/token-top/ttop`. Do not add FounderOS types there.
+Library entrypoint: `github.com/markcmarshall/token-top/ttop`.
 
 Do not add linter or release frameworks. Keep fixtures free of real prompt, completion, tool, credential, and source-code content.

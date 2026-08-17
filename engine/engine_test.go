@@ -26,7 +26,7 @@ func eventAt(id, session string, src telemetry.SourceName, at time.Time, in, out
 		SessionID: session,
 		Timestamp: at,
 		Model:     "gpt-test",
-		CWD:       "/work/FounderOS",
+		CWD:       "/work/acme",
 		Input:     in,
 		Output:    out,
 		Complete:  true,

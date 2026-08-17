@@ -9,9 +9,7 @@ import (
 	"github.com/markcmarshall/token-top/telemetry"
 )
 
-// Attributor is the v1 consumer injection point.
-// FounderOS supplies a private implementation; the public engine never
-// imports FounderOS types.
+// Attributor labels a token event with a project key and display name.
 type Attributor interface {
 	Attribute(telemetry.TokenEvent) Attribution
 }

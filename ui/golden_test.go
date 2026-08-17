@@ -87,7 +87,7 @@ func hugeSnap() engine.Snapshot {
 
 func TestRenderOneSource(t *testing.T) {
 	out := Render(oneSourceSnap(), Options{Width: 100, Height: 24, Now: testSnap().GeneratedAt, Interval: 2 * time.Second})
-	if !strings.Contains(out, "CODEX") || !strings.Contains(out, "FounderOS") {
+	if !strings.Contains(out, "CODEX") || !strings.Contains(out, "acme") {
 		t.Fatalf("%s", out)
 	}
 }

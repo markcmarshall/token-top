@@ -46,7 +46,7 @@ func TestCacheAndThinkingNormalization(t *testing.T) {
 	if events[0].SessionID != "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" {
 		t.Fatalf("session %s", events[0].SessionID)
 	}
-	if events[0].Model != "claude-opus-4.8" || events[0].CWD != "/work/FounderOS" {
+	if events[0].Model != "claude-opus-4.8" || events[0].CWD != "/work/acme" {
 		t.Fatalf("meta %+v", events[0])
 	}
 	if events[0].Input != 52 || events[0].Output != 10 || events[0].Total() != 62 {
@@ -109,7 +109,7 @@ func TestEventLevelCWDPreserved(t *testing.T) {
 	if bad != 0 || len(events) != 2 {
 		t.Fatalf("events=%d bad=%d", len(events), bad)
 	}
-	if events[0].CWD != "/work/FounderOS" || events[1].CWD != "/work/scripts" {
+	if events[0].CWD != "/work/acme" || events[1].CWD != "/work/scripts" {
 		t.Fatalf("cwd %q %q", events[0].CWD, events[1].CWD)
 	}
 	if events[0].SessionID != events[1].SessionID {

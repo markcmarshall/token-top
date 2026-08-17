@@ -21,7 +21,7 @@ func TestInjectedAttributorIsUsed(t *testing.T) {
 	eng.Apply(telemetry.Batch{
 		Events: []telemetry.TokenEvent{{
 			ID: "1", Source: telemetry.SourceClaude, SessionID: "s",
-			Timestamp: clk.Now(), Model: "m", CWD: "/work/FounderOS",
+			Timestamp: clk.Now(), Model: "m", CWD: "/work/acme",
 			Input: 4, Output: 1, Complete: true,
 		}},
 		Health: telemetry.SourceHealth{Source: telemetry.SourceClaude, State: telemetry.HealthOK},

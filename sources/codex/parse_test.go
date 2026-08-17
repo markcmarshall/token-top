@@ -48,7 +48,7 @@ func TestNormalCumulativeDeltas(t *testing.T) {
 	if events[0].SessionID != "11111111-1111-1111-1111-111111111111" {
 		t.Fatalf("session %s", events[0].SessionID)
 	}
-	if events[0].Model != "gpt-5.6-sol" || events[0].CWD != "/work/FounderOS" {
+	if events[0].Model != "gpt-5.6-sol" || events[0].CWD != "/work/acme" {
 		t.Fatalf("meta %+v", events[0])
 	}
 	if events[0].Input != 100 || events[0].Output != 10 || events[0].Total() != 110 {

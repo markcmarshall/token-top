@@ -33,19 +33,19 @@ func testSnap() engine.Snapshot {
 		Sessions: []engine.Session{
 			{
 				Source: telemetry.SourceCodex, SessionID: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-				Activity: engine.ActivityBurning, Model: "gpt-5.6-sol", ProjectLabel: "FounderOS",
+				Activity: engine.ActivityBurning, Model: "gpt-5.6-sol", ProjectLabel: "acme",
 				Rate1m: 184000, Rate5m: 121000, Rate15m: 90000, Total: 4_200_000, Input: 3_000_000, Output: 1_200_000,
 				CacheRatio: &cache, FirstEvent: now.Add(-2 * time.Hour), LastEvent: now.Add(-2 * time.Second),
 			},
 			{
 				Source: telemetry.SourceClaude, SessionID: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-				Activity: engine.ActivityBurning, Model: "claude-opus-4.8", ProjectLabel: "Inference Security",
+				Activity: engine.ActivityBurning, Model: "claude-opus-4.8", ProjectLabel: "payments",
 				Rate1m: 92000, Rate5m: 76000, Rate15m: 40000, Total: 2_700_000,
 				LastEvent: now.Add(-5 * time.Second), FirstEvent: now.Add(-40 * time.Minute),
 			},
 			{
 				Source: telemetry.SourceGrok, SessionID: "cccccccc-cccc-cccc-cccc-cccccccccccc",
-				Activity: engine.ActivityRecent, Model: "grok-4.6", ProjectLabel: "Wear the Singularity",
+				Activity: engine.ActivityRecent, Model: "grok-4.6", ProjectLabel: "website",
 				Rate1m: 0, Rate5m: 18000, Rate15m: 12000, Total: 1_100_000,
 				LastEvent: now.Add(-54 * time.Second), FirstEvent: now.Add(-3 * time.Hour),
 			},
@@ -67,7 +67,7 @@ func renderAt(t *testing.T, width, height int, color bool) string {
 
 func TestRenderContainsRegions(t *testing.T) {
 	out := renderAt(t, 100, 24, false)
-	for _, want := range []string{"TOKEN TOP", "BURN", "ACTIVE", "CLAUDE", "CODEX", "GROK", "FounderOS", "trailing completed usage", "q quit"} {
+	for _, want := range []string{"TOKEN TOP", "BURN", "ACTIVE", "CLAUDE", "CODEX", "GROK", "acme", "trailing completed usage", "q quit"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q in\n%s", want, out)
 		}

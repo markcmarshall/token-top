@@ -37,7 +37,7 @@ func consumeEvents(t *testing.T, name string) parsed {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	p := Parser{SessionID: "11111111-1111-1111-1111-111111111111", CWD: "/work/FounderOS", Model: "grok-4.6"}
+	p := Parser{SessionID: "11111111-1111-1111-1111-111111111111", CWD: "/work/acme", Model: "grok-4.6"}
 	var out parsed
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
@@ -66,7 +66,7 @@ func TestNormalCompletedTurns(t *testing.T) {
 	if got.Events[0].Reasoning == nil || *got.Events[0].Reasoning != 4 {
 		t.Fatalf("reason %+v", got.Events[0].Reasoning)
 	}
-	if got.Events[0].Model != "grok-4.6" || got.Events[0].CWD != "/work/FounderOS" {
+	if got.Events[0].Model != "grok-4.6" || got.Events[0].CWD != "/work/acme" {
 		t.Fatalf("meta %+v", got.Events[0])
 	}
 	if got.Events[1].Input != 50 || got.Events[1].Total() != 55 {
@@ -133,8 +133,8 @@ func TestIgnoresUnifiedInferenceShape(t *testing.T) {
 }
 
 func TestParseSummary(t *testing.T) {
-	id, cwd, model, err := ParseSummary([]byte(`{"info":{"id":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","cwd":"/work/FounderOS"},"current_model_id":"grok-4.6","session_summary":"REDACTED"}`))
-	if err != nil || id != "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" || cwd != "/work/FounderOS" || model != "grok-4.6" {
+	id, cwd, model, err := ParseSummary([]byte(`{"info":{"id":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","cwd":"/work/acme"},"current_model_id":"grok-4.6","session_summary":"REDACTED"}`))
+	if err != nil || id != "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" || cwd != "/work/acme" || model != "grok-4.6" {
 		t.Fatalf("%s %s %s %v", id, cwd, model, err)
 	}
 }
