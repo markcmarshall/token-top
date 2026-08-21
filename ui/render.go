@@ -20,16 +20,17 @@ const (
 )
 
 type Options struct {
-	Width    int
-	Height   int
-	Now      time.Time
-	Color    bool
-	Interval time.Duration
+	Width             int
+	Height            int
+	Now               time.Time
+	Color             bool
+	Interval          time.Duration
+	AttributionHeader string
 }
 
 func tierFor(width int) Tier {
 	switch {
-	case width < 80:
+	case width < 72:
 		return TierNarrow
 	case width < 120:
 		return TierNormal
@@ -48,153 +49,184 @@ func Render(snap engine.Snapshot, opt Options) string {
 	if opt.Now.IsZero() {
 		opt.Now = snap.GeneratedAt
 	}
-	if opt.Interval <= 0 {
-		opt.Interval = 2 * time.Second
+	if opt.AttributionHeader == "" {
+		opt.AttributionHeader = "PROJECT"
 	}
+
 	tier := tierFor(opt.Width)
 	s := initStyles(opt.Color)
-
-	var b strings.Builder
-	b.WriteString(renderTitle(opt, s))
-	b.WriteByte('\n')
-	b.WriteByte('\n')
-	b.WriteString(renderBurn(snap, s))
-	b.WriteByte('\n')
-	b.WriteString(renderActive(snap))
-	b.WriteByte('\n')
-	b.WriteByte('\n')
-	b.WriteString(renderHarness(snap, s))
-	b.WriteByte('\n')
-	b.WriteString(renderBar(snap, opt.Width, s))
-	for _, line := range renderHealthDetails(snap, s) {
-		b.WriteByte('\n')
-		b.WriteString(line)
+	compactHeight := opt.Height < 16
+	lines := []string{" " + s.title.Render("TOKEN TOP")}
+	if !compactHeight {
+		lines = append(lines, "")
 	}
-	b.WriteByte('\n')
-	b.WriteByte('\n')
-	header := tableHeader(tier)
-	b.WriteString(s.dim.Render(header))
-	b.WriteByte('\n')
+	lines = append(lines, renderToday(snap, s))
+	lines = append(lines, renderAccounting(snap, tier, s)...)
+	lines = append(lines, renderHealthDetails(snap, s)...)
+	if !compactHeight {
+		lines = append(lines, "")
+	}
+	lines = append(lines, renderRecent(snap, tier, s))
+	if !compactHeight {
+		lines = append(lines, "")
+	}
+	lines = append(lines, renderHarness(snap, opt.Width, tier, compactHeight, s)...)
+	if !compactHeight {
+		lines = append(lines, "")
+	}
 
-	used := 2 + 2 + 2 + 2 + len(renderHealthDetails(snap, s)) + 2 + 1 + 1
-	rows, overflow := visibleRows(snap.Sessions, opt.Height-used)
+	header := attributionHeader(opt.AttributionHeader, opt.Width, tier)
+	lines = append(lines, s.dim.Render(header))
+	footerLines := 1
+	if compactHeight {
+		footerLines = 0
+	}
+	available := opt.Height - len(lines) - footerLines
+	if available < 0 {
+		available = 0
+	}
+	rowLimit := available
+	if len(snap.Attributions) > rowLimit && rowLimit > 0 {
+		rowLimit--
+	}
+	rows, overflow := visibleAttributions(snap.Attributions, rowLimit)
 	for _, row := range rows {
-		b.WriteString(renderRow(row, tier, opt, s))
-		b.WriteByte('\n')
+		lines = append(lines, renderAttribution(row, opt.Width, tier, opt, s))
 	}
 	if overflow > 0 {
-		b.WriteString(s.dim.Render(fmt.Sprintf("+%d more recent", overflow)))
-		b.WriteByte('\n')
+		lines = append(lines, s.dim.Render(fmt.Sprintf(" +%d more", overflow)))
 	}
-	b.WriteString(s.dim.Render(renderFooter(snap)))
-	b.WriteByte('\n')
-	return fitWidth(b.String(), opt.Width)
-}
-
-func renderTitle(opt Options, s styles) string {
-	left := "TOKEN TOP"
-	right := fmt.Sprintf("%s · refresh %s", opt.Now.Format("15:04:05"), opt.Interval)
-	gap := opt.Width - 1 - lipgloss.Width(left) - lipgloss.Width(right)
-	if gap < 1 {
-		gap = 1
+	if !compactHeight {
+		lines = append(lines, s.dim.Render(" q quit"))
 	}
-	return " " + s.title.Render(left) + strings.Repeat(" ", gap) + s.dim.Render(right)
+
+	return fitWidth(strings.Join(lines, "\n")+"\n", opt.Width)
 }
 
-func renderBurn(snap engine.Snapshot, s styles) string {
-	return fmt.Sprintf(" BURN     1m %s    5m %s    15m %s    TODAY %s",
-		s.bright.Render(formatRate(snap.Global.Rate1m)),
-		formatRate(snap.Global.Rate5m),
-		formatRate(snap.Global.Rate15m),
-		formatCount(snap.Global.Today, snap.Global.TodayApprox),
-	)
+func renderToday(snap engine.Snapshot, s styles) string {
+	return fmt.Sprintf(" TODAY  %s processed", s.bright.Render(formatCount(snap.Global.Today, snap.Global.TodayApprox)))
 }
 
-func renderActive(snap engine.Snapshot) string {
-	return fmt.Sprintf(" ACTIVE   %d burning    %d recent     %d quiet hidden",
-		snap.Global.Burning, snap.Global.Recent, snap.QuietHidden)
-}
-
-func renderHarness(snap engine.Snapshot, s styles) string {
-	parts := make([]string, 0, len(snap.Sources))
-	for _, src := range snap.Sources {
-		label := strings.ToUpper(string(src.Name))
-		mark := healthMark(src.Health.State)
-		share := fmt.Sprintf("%.0f%%", src.Share1m*100)
-		part := fmt.Sprintf("%s %s  %s  %s",
-			s.source(src.Name, true).Render(label),
-			mark,
-			formatRate(src.Rate1m),
-			share,
-		)
-		if src.Health.Indexing {
-			part += "  " + s.dim.Render("indexing")
+func renderAccounting(snap engine.Snapshot, tier Tier, s styles) []string {
+	input := formatCount(snap.Global.TodayInput, snap.Global.TodayApprox)
+	output := formatCount(snap.Global.TodayOutput, snap.Global.TodayApprox)
+	detail := cacheDetail(snap.Global)
+	if tier == TierNarrow && detail != "" {
+		return []string{
+			fmt.Sprintf(" INPUT  %s", input),
+			"        " + s.dim.Render(detail),
+			fmt.Sprintf(" OUTPUT %s", output),
 		}
-		parts = append(parts, part)
 	}
-	return " " + strings.Join(parts, "    ")
+	line := fmt.Sprintf(" INPUT  %s", input)
+	if detail != "" {
+		line += " = " + s.dim.Render(detail)
+	}
+	return []string{line, fmt.Sprintf(" OUTPUT %s", output)}
 }
 
-func renderBar(snap engine.Snapshot, width int, s styles) string {
-	barW := width - 2
+func cacheDetail(global engine.Global) string {
+	known := global.TodayCacheKnownInput
+	if global.TodayInput == 0 {
+		return ""
+	}
+	if known == 0 {
+		return fmt.Sprintf("%s unknown · cache telemetry unavailable", formatCount(global.TodayInput, global.TodayApprox))
+	}
+	read := global.TodayCacheRead
+	if read > known {
+		read = known
+	}
+	uncached := known - read
+	parts := []string{
+		fmt.Sprintf("%s cached", formatCount(read, global.TodayApprox)),
+		fmt.Sprintf("%s uncached", formatCount(uncached, global.TodayApprox)),
+	}
+	if known < global.TodayInput {
+		parts = append(parts, fmt.Sprintf("%s unknown", formatCount(global.TodayInput-known, global.TodayApprox)))
+	}
+	ratio := float64(read) / float64(known)
+	percentLabel := fmt.Sprintf("%.1f%% cached", ratio*100)
+	if known < global.TodayInput {
+		percentLabel += " where known"
+	}
+	return strings.Join(parts, " + ") + " · " + percentLabel
+}
+
+func renderRecent(snap engine.Snapshot, tier Tier, s styles) string {
+	if tier == TierNarrow {
+		return fmt.Sprintf(" RECENT  5M %s · %s   15M %s · %s",
+			formatCount(snap.Global.Tokens5m, false), formatRate(snap.Global.Rate5m),
+			formatCount(snap.Global.Tokens15m, false), formatRate(snap.Global.Rate15m))
+	}
+	return fmt.Sprintf(" RECENT       5M %s · %s       15M %s · %s",
+		s.bright.Render(formatCount(snap.Global.Tokens5m, false)), formatRate(snap.Global.Rate5m),
+		s.bright.Render(formatCount(snap.Global.Tokens15m, false)), formatRate(snap.Global.Rate15m))
+}
+
+func renderHarness(snap engine.Snapshot, width int, tier Tier, compactHeight bool, s styles) []string {
+	if width > 100 {
+		width = 100
+	}
+	labelW := 7
+	headerLabel := "HARNESS"
+	if tier == TierNarrow {
+		labelW = 3
+		headerLabel = "H"
+	}
+	todayW, recentW, pctW := 8, 8, 6
+	barW := width - 1 - labelW - 2 - 1 - pctW - 2 - todayW - 2 - recentW
+	if barW < 4 {
+		barW = 4
+	}
 	if barW > 48 {
 		barW = 48
 	}
-	if barW < 8 {
-		barW = 8
-	}
-	if snap.Global.Rate1m <= 0 {
-		return " " + s.dim.Render(strings.Repeat("░", barW))
-	}
-	shares := make([]float64, len(snap.Sources))
-	for i, src := range snap.Sources {
-		shares[i] = src.Share1m
-	}
-	widths := barShares(shares, barW)
-	var b strings.Builder
-	b.WriteByte(' ')
-	used := 0
-	for i, src := range snap.Sources {
-		n := widths[i]
-		used += n
-		if n > 0 {
-			b.WriteString(s.source(src.Name, true).Render(strings.Repeat("█", n)))
-		}
-	}
-	if used < barW {
-		b.WriteString(s.dim.Render(strings.Repeat("░", barW-used)))
-	}
-	return b.String()
-}
-
-func barShares(shares []float64, width int) []int {
-	n := make([]int, len(shares))
-	used := 0
-	for i, s := range shares {
-		if s <= 0 {
+	header := fmt.Sprintf(" %s  %s  %s  %s",
+		padRight(headerLabel, labelW),
+		padRight("TODAY SHARE", barW+pctW+1),
+		padLeft("TODAY", todayW),
+		padLeft("15M", recentW))
+	lines := []string{s.dim.Render(header)}
+	for _, src := range snap.Sources {
+		if compactHeight && src.Today == 0 && src.Tokens15m == 0 && src.Health.State != telemetry.HealthDegraded && src.Health.State != telemetry.HealthFailed {
 			continue
 		}
-		raw := int(s * float64(width))
-		if raw == 0 {
-			raw = 1
-		}
-		n[i] = raw
-		used += raw
+		label := strings.ToUpper(harnessLabel(src.Name, tier != TierNarrow))
+		bar := renderShareBar(src.ShareToday, barW, src.Name, s)
+		line := fmt.Sprintf(" %s  %s %s  %s  %s",
+			s.source(src.Name, src.Today > 0 || src.Tokens15m > 0).Render(padRight(label, labelW)),
+			bar,
+			padLeft(formatShare(src.ShareToday), pctW),
+			padLeft(formatCount(src.Today, src.Health.TodayIncomplete), todayW),
+			padLeft(formatCount(src.Tokens15m, false), recentW))
+		lines = append(lines, line)
 	}
-	for used > width {
-		idx := -1
-		for i, v := range n {
-			if v > 1 && (idx < 0 || v > n[idx]) {
-				idx = i
-			}
-		}
-		if idx < 0 {
-			break
-		}
-		n[idx]--
-		used--
+	return lines
+}
+
+func renderShareBar(share float64, width int, name telemetry.SourceName, s styles) string {
+	if share <= 0 {
+		return strings.Repeat(" ", width)
 	}
-	return n
+	filled := int(share*float64(width) + 0.5)
+	if filled < 1 {
+		filled = 1
+	}
+	if filled > width {
+		filled = width
+	}
+	return s.source(name, true).Render(strings.Repeat("█", filled)) + s.dim.Render(strings.Repeat("░", width-filled))
+}
+
+func formatShare(share float64) string {
+	if share <= 0 {
+		return "0%"
+	}
+	if share >= 1 {
+		return "100%"
+	}
+	return fmt.Sprintf("%.1f%%", share*100)
 }
 
 func renderHealthDetails(snap engine.Snapshot, s styles) []string {
@@ -203,96 +235,69 @@ func renderHealthDetails(snap engine.Snapshot, s styles) []string {
 		if src.Health.State != telemetry.HealthDegraded && src.Health.State != telemetry.HealthFailed {
 			continue
 		}
-		if src.Health.Detail == "" {
-			continue
-		}
 		name := strings.ToUpper(string(src.Name))
-		lines = append(lines, " "+s.warn.Render(fmt.Sprintf("%s %s %s", name, healthMark(src.Health.State), src.Health.Detail)))
+		detail := src.Health.Detail
+		if detail == "" {
+			detail = string(src.Health.State)
+		}
+		lines = append(lines, " "+s.warn.Render(fmt.Sprintf("%s ! %s", name, detail)))
 	}
 	return lines
 }
 
-func tableHeader(tier Tier) string {
-	switch tier {
-	case TierNarrow:
-		return fmt.Sprintf(" %s  %s  %s  %s  %s  %s",
-			"S", padRight("H", 3), padRight("PROJECT", 12), padLeft("1M", 8), padLeft("TOTAL", 8), padLeft("LAST", 5))
-	case TierWide:
-		return fmt.Sprintf(" %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s",
-			"S", padRight("HARNESS", 7), padRight("MODEL", 14), padRight("PROJECT", 16),
-			padLeft("1M", 8), padLeft("5M", 8), padLeft("15M", 8), padLeft("TOTAL", 8),
-			padLeft("IN", 8), padLeft("OUT", 8), padLeft("CACHE", 6), padLeft("LAST", 5), padLeft("AGE", 5), padLeft("SID", 8))
-	default:
-		return fmt.Sprintf(" %s  %s  %s  %s  %s  %s  %s  %s  %s",
-			"S", padRight("HARNESS", 7), padRight("MODEL", 14), padRight("PROJECT", 16),
-			padLeft("1M", 8), padLeft("5M", 8), padLeft("TOTAL", 8), padLeft("CACHE", 6), padLeft("LAST", 5))
+func attributionHeader(label string, width int, tier Tier) string {
+	if width > 100 {
+		width = 100
 	}
+	sourceW := 7
+	sourceLabel := "HARNESS"
+	if tier == TierNarrow {
+		sourceW = 3
+		sourceLabel = "H"
+	}
+	todayW, recentW, lastW := 8, 8, 5
+	labelW := width - 1 - 2 - sourceW - 2 - todayW - 2 - recentW - 2 - lastW
+	if labelW < 8 {
+		labelW = 8
+	}
+	return fmt.Sprintf(" %s  %s  %s  %s  %s",
+		padRight(strings.ToUpper(label), labelW),
+		padRight(sourceLabel, sourceW),
+		padLeft("TODAY", todayW),
+		padLeft("15M", recentW),
+		padLeft("LAST", lastW))
 }
 
-func renderRow(row engine.Session, tier Tier, opt Options, s styles) string {
-	state := "·"
-	if row.Activity == engine.ActivityBurning {
-		state = "●"
+func renderAttribution(row engine.AttributionSnapshot, width int, tier Tier, opt Options, s styles) string {
+	if width > 100 {
+		width = 100
 	}
-	hs := s.source(row.Source, row.Activity == engine.ActivityBurning)
-	project := row.ProjectLabel
-	if project == "" {
-		project = "unknown"
+	sourceW := 7
+	if tier == TierNarrow {
+		sourceW = 3
 	}
-	last := formatAge(opt.Now, row.LastEvent)
-	switch tier {
-	case TierNarrow:
-		return fmt.Sprintf(" %s  %s  %s  %s  %s  %s",
-			state,
-			hs.Render(padRight(harnessLabel(row.Source, false), 3)),
-			padRight(trunc(project, 12), 12),
-			padLeft(formatRate(row.Rate1m), 8),
-			padLeft(formatCount(row.Total, row.TotalApprox), 8),
-			padLeft(last, 5),
-		)
-	case TierWide:
-		model := displayModel(row.Model)
-		if row.ModelCount > 1 {
-			model = fmt.Sprintf("%s +%d", model, row.ModelCount-1)
-		}
-		return fmt.Sprintf(" %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s  %s",
-			state,
-			hs.Render(padRight(harnessLabel(row.Source, true), 7)),
-			padRight(trunc(model, 14), 14),
-			padRight(trunc(project, 16), 16),
-			padLeft(formatRate(row.Rate1m), 8),
-			padLeft(formatRate(row.Rate5m), 8),
-			padLeft(formatRate(row.Rate15m), 8),
-			padLeft(formatCount(row.Total, row.TotalApprox), 8),
-			padLeft(formatCount(row.Input, false), 8),
-			padLeft(formatCount(row.Output, false), 8),
-			padLeft(formatPct(row.CacheRatio), 6),
-			padLeft(last, 5),
-			padLeft(formatAge(opt.Now, row.FirstEvent), 5),
-			padLeft(shortSession(row.SessionID), 8),
-		)
-	default:
-		return fmt.Sprintf(" %s  %s  %s  %s  %s  %s  %s  %s  %s",
-			state,
-			hs.Render(padRight(harnessLabel(row.Source, true), 7)),
-			padRight(trunc(displayModel(row.Model), 14), 14),
-			padRight(trunc(project, 16), 16),
-			padLeft(formatRate(row.Rate1m), 8),
-			padLeft(formatRate(row.Rate5m), 8),
-			padLeft(formatCount(row.Total, row.TotalApprox), 8),
-			padLeft(formatPct(row.CacheRatio), 6),
-			padLeft(last, 5),
-		)
+	todayW, recentW, lastW := 8, 8, 5
+	labelW := width - 1 - 2 - sourceW - 2 - todayW - 2 - recentW - 2 - lastW
+	if labelW < 8 {
+		labelW = 8
 	}
+	label := row.Label
+	if label == "" {
+		label = "unattributed"
+	}
+	harness := harnessLabel(row.Source, tier != TierNarrow)
+	hot := row.Tokens15m > 0
+	return fmt.Sprintf(" %s  %s  %s  %s  %s",
+		padRight(trunc(label, labelW), labelW),
+		s.source(row.Source, hot).Render(padRight(harness, sourceW)),
+		padLeft(formatCount(row.Today, row.TodayApprox), todayW),
+		padLeft(formatCount(row.Tokens15m, false), recentW),
+		padLeft(formatAge(opt.Now, row.LastEvent), lastW))
 }
 
-func renderFooter(snap engine.Snapshot) string {
-	return fmt.Sprintf(" trailing completed usage · %d quiet hidden · q quit", snap.QuietHidden)
-}
-
-func visibleRows(rows []engine.Session, max int) ([]engine.Session, int) {
-	if max < 1 {
-		max = 1
+func visibleAttributions(rows []engine.AttributionSnapshot, max int) ([]engine.AttributionSnapshot, int) {
+	if max < 0 {
+		max = 0
 	}
 	if len(rows) <= max {
 		return rows, 0
@@ -300,8 +305,8 @@ func visibleRows(rows []engine.Session, max int) ([]engine.Session, int) {
 	return rows[:max], len(rows) - max
 }
 
-func fitWidth(s string, width int) string {
-	lines := strings.Split(s, "\n")
+func fitWidth(value string, width int) string {
+	lines := strings.Split(value, "\n")
 	for i, line := range lines {
 		if lipgloss.Width(line) > width {
 			lines[i] = trunc(line, width)

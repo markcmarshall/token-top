@@ -12,12 +12,20 @@ import (
 )
 
 type Model struct {
-	poller   *Poller
-	snap     engine.Snapshot
-	interval time.Duration
-	color    bool
-	width    int
-	height   int
+	poller            *Poller
+	snap              engine.Snapshot
+	interval          time.Duration
+	color             bool
+	width             int
+	height            int
+	attributionHeader string
+}
+
+// WithAttributionHeader changes the work-aggregate column label. Standalone
+// Token Top defaults to PROJECT; private compositions may use another subject.
+func (m Model) WithAttributionHeader(label string) Model {
+	m.attributionHeader = label
+	return m
 }
 
 type Poller struct {
@@ -102,11 +110,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) View() tea.View {
 	v := tea.NewView(Render(m.snap, Options{
-		Width:    m.width,
-		Height:   m.height,
-		Now:      m.snap.GeneratedAt,
-		Color:    m.color,
-		Interval: m.interval,
+		Width:             m.width,
+		Height:            m.height,
+		Now:               m.snap.GeneratedAt,
+		Color:             m.color,
+		Interval:          m.interval,
+		AttributionHeader: m.attributionHeader,
 	}))
 	v.AltScreen = true
 	return v

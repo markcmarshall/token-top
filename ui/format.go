@@ -17,9 +17,9 @@ func compact(n uint64) string {
 	case n < 1000:
 		return fmt.Sprintf("%d", n)
 	case n < 10_000:
-		return trimFloat(float64(n)/1000, "k")
+		return trimFloat(float64(n)/1000, "K")
 	case n < 1_000_000:
-		return fmt.Sprintf("%dk", n/1000)
+		return fmt.Sprintf("%dK", n/1000)
 	case n < 10_000_000:
 		return trimFloat(float64(n)/1_000_000, "M")
 	default:

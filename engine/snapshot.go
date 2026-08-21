@@ -21,28 +21,52 @@ const (
 )
 
 type Snapshot struct {
-	GeneratedAt time.Time
-	Global      Global
-	Sources     []SourceSnapshot
-	Sessions    []Session
-	QuietHidden int
+	GeneratedAt  time.Time
+	Global       Global
+	Sources      []SourceSnapshot
+	Attributions []AttributionSnapshot
+	Sessions     []Session
+	QuietHidden  int
 }
 
 type Global struct {
-	Rate1m      float64
-	Rate5m      float64
-	Rate15m     float64
-	Today       uint64
-	TodayApprox bool
-	Burning     int
-	Recent      int
+	Rate1m               float64
+	Rate5m               float64
+	Rate15m              float64
+	Tokens5m             uint64
+	Tokens15m            uint64
+	Today                uint64
+	TodayInput           uint64
+	TodayOutput          uint64
+	TodayCacheRead       uint64
+	TodayCacheKnownInput uint64
+	TodayApprox          bool
+	Burning              int
+	Recent               int
 }
 
 type SourceSnapshot struct {
-	Name    telemetry.SourceName
-	Health  telemetry.SourceHealth
-	Rate1m  float64
-	Share1m float64
+	Name       telemetry.SourceName
+	Health     telemetry.SourceHealth
+	Rate1m     float64
+	Share1m    float64
+	Tokens15m  uint64
+	Today      uint64
+	ShareToday float64
+}
+
+// AttributionSnapshot is an event-level work aggregate. Standalone Token Top
+// supplies project attribution; private consumers may inject another work
+// subject through the public Attributor interface.
+type AttributionSnapshot struct {
+	Source      telemetry.SourceName
+	Key         string
+	Label       string
+	Method      string
+	Tokens15m   uint64
+	Today       uint64
+	TodayApprox bool
+	LastEvent   time.Time
 }
 
 type Session struct {

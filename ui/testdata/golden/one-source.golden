@@ -1,11 +1,14 @@
- TOKEN TOP                                                                     20:32:14 · refresh 2s
+ TOKEN TOP
 
- BURN     1m 337k/m    5m 221k/m    15m 190k/m    TODAY 18.4M
- ACTIVE   1 burning    0 recent     6 quiet hidden
+ TODAY  18.4M processed
+ INPUT  17.2M = 13.4M cached + 3.8M uncached · 78.0% cached
+ OUTPUT 1.2M
 
- CODEX ✓  245k/m  100%
- ████████████████████████████████████████████████
+ RECENT       5M 1.1M · 221K/m       15M 2.9M · 190K/m
 
- S  HARNESS  MODEL           PROJECT                 1M        5M     TOTAL   CACHE   LAST
- ●  codex    gpt-5.6-sol     acme                184k/m    121k/m      4.2M     78%     2s
- trailing completed usage · 6 quiet hidden · q quit
+ HARNESS  TODAY SHARE                                                 TODAY       15M
+ CODEX    ████████████████████████████████████████████████   100%     18.4M      2.9M
+
+ PROJECT                                                          HARNESS     TODAY       15M   LAST
+ acme                                                             codex       18.4M      2.9M     2s
+ q quit
