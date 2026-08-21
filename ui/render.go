@@ -127,8 +127,11 @@ func renderAccounting(snap engine.Snapshot, tier Tier, s styles) []string {
 
 func cacheDetail(global engine.Global) string {
 	known := global.TodayCacheKnownInput
-	if global.TodayInput == 0 || known == 0 {
+	if global.TodayInput == 0 {
 		return ""
+	}
+	if known == 0 {
+		return fmt.Sprintf("%s unknown · cache telemetry unavailable", formatCount(global.TodayInput, global.TodayApprox))
 	}
 	read := global.TodayCacheRead
 	if read > known {
@@ -143,7 +146,11 @@ func cacheDetail(global engine.Global) string {
 		parts = append(parts, fmt.Sprintf("%s unknown", formatCount(global.TodayInput-known, global.TodayApprox)))
 	}
 	ratio := float64(read) / float64(known)
-	return strings.Join(parts, " + ") + fmt.Sprintf(" · %.1f%% cached", ratio*100)
+	percentLabel := fmt.Sprintf("%.1f%% cached", ratio*100)
+	if known < global.TodayInput {
+		percentLabel += " where known"
+	}
+	return strings.Join(parts, " + ") + " · " + percentLabel
 }
 
 func renderRecent(snap engine.Snapshot, tier Tier, s styles) string {

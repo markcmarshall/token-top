@@ -220,15 +220,21 @@ func TestLocalDayRollover(t *testing.T) {
 	loc := time.Local
 	clk := &FixedClock{T: time.Date(2026, 8, 16, 23, 55, 0, 0, loc)}
 	eng := newTestEngine(clk)
-	applyOne(eng, eventAt("e", "s", telemetry.SourceClaude, clk.Now(), 80, 20))
-	if eng.Snapshot().Global.Today != 100 {
+	ev := eventAt("e", "s", telemetry.SourceClaude, clk.Now(), 80, 20)
+	ev.CacheRead = telemetry.Uint64Ptr(60)
+	applyOne(eng, ev)
+	before := eng.Snapshot()
+	if before.Global.Today != 100 || before.Global.TodayInput != 80 || before.Global.TodayOutput != 20 || before.Global.TodayCacheRead != 60 {
 		t.Fatal("pre-rollover")
 	}
 
 	clk.Set(time.Date(2026, 8, 17, 0, 5, 0, 0, loc))
 	snap := eng.Snapshot()
-	if snap.Global.Today != 0 {
-		t.Fatalf("today after rollover %d", snap.Global.Today)
+	if snap.Global.Today != 0 || snap.Global.TodayInput != 0 || snap.Global.TodayOutput != 0 || snap.Global.TodayCacheRead != 0 || snap.Global.TodayCacheKnownInput != 0 {
+		t.Fatalf("today accounting survived rollover: %+v", snap.Global)
+	}
+	if snap.Sources[0].Today != 0 || snap.Sources[0].ShareToday != 0 {
+		t.Fatalf("source accounting survived rollover: %+v", snap.Sources[0])
 	}
 	if snap.Global.Recent != 1 {
 		t.Fatalf("event should still be recent: %+v", snap)

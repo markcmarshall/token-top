@@ -199,8 +199,18 @@ func TestCacheBreakdownHandlesUnknownCoverage(t *testing.T) {
 	snap := testSnap()
 	snap.Global.TodayCacheKnownInput = 16_000_000
 	out := Render(snap, Options{Width: 100, Height: 24, Now: snap.GeneratedAt})
-	if !strings.Contains(out, "unknown") {
+	if !strings.Contains(out, "unknown") || !strings.Contains(out, "cached where known") {
 		t.Fatalf("partial cache coverage presented as exact\n%s", out)
+	}
+}
+
+func TestCacheBreakdownReportsUnavailableTelemetry(t *testing.T) {
+	snap := testSnap()
+	snap.Global.TodayCacheRead = 0
+	snap.Global.TodayCacheKnownInput = 0
+	out := Render(snap, Options{Width: 100, Height: 24, Now: snap.GeneratedAt})
+	if !strings.Contains(out, "17.2M unknown") || !strings.Contains(out, "cache telemetry unavailable") {
+		t.Fatalf("missing cache coverage presented as no breakdown\n%s", out)
 	}
 }
 
