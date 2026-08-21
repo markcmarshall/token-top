@@ -17,18 +17,29 @@ func testSnap() engine.Snapshot {
 	return engine.Snapshot{
 		GeneratedAt: now,
 		Global: engine.Global{
-			Rate1m:  337000,
-			Rate5m:  221000,
-			Rate15m: 190000,
-			Today:   18_400_000,
-			Burning: 2,
-			Recent:  1,
+			Rate1m:               337000,
+			Rate5m:               221000,
+			Rate15m:              190000,
+			Tokens5m:             1_105_000,
+			Tokens15m:            2_850_000,
+			Today:                18_400_000,
+			TodayInput:           17_200_000,
+			TodayOutput:          1_200_000,
+			TodayCacheRead:       13_416_000,
+			TodayCacheKnownInput: 17_200_000,
+			Burning:              2,
+			Recent:               1,
 		},
 		QuietHidden: 6,
 		Sources: []engine.SourceSnapshot{
-			{Name: telemetry.SourceClaude, Health: telemetry.SourceHealth{Source: telemetry.SourceClaude, State: telemetry.HealthOK}, Rate1m: 92000, Share1m: 0.27},
-			{Name: telemetry.SourceCodex, Health: telemetry.SourceHealth{Source: telemetry.SourceCodex, State: telemetry.HealthOK}, Rate1m: 245000, Share1m: 0.73},
-			{Name: telemetry.SourceGrok, Health: telemetry.SourceHealth{Source: telemetry.SourceGrok, State: telemetry.HealthOK}, Rate1m: 0, Share1m: 0},
+			{Name: telemetry.SourceClaude, Health: telemetry.SourceHealth{Source: telemetry.SourceClaude, State: telemetry.HealthOK}, Rate1m: 92000, Share1m: 0.27, Tokens15m: 1_000_000, Today: 5_000_000, ShareToday: 5_000_000.0 / 18_400_000},
+			{Name: telemetry.SourceCodex, Health: telemetry.SourceHealth{Source: telemetry.SourceCodex, State: telemetry.HealthOK}, Rate1m: 245000, Share1m: 0.73, Tokens15m: 1_800_000, Today: 12_300_000, ShareToday: 12_300_000.0 / 18_400_000},
+			{Name: telemetry.SourceGrok, Health: telemetry.SourceHealth{Source: telemetry.SourceGrok, State: telemetry.HealthOK}, Rate1m: 0, Share1m: 0, Tokens15m: 50_000, Today: 1_100_000, ShareToday: 1_100_000.0 / 18_400_000},
+		},
+		Attributions: []engine.AttributionSnapshot{
+			{Source: telemetry.SourceCodex, Key: "acme", Label: "acme", Tokens15m: 1_800_000, Today: 12_300_000, LastEvent: now.Add(-2 * time.Second)},
+			{Source: telemetry.SourceClaude, Key: "payments", Label: "payments", Tokens15m: 1_000_000, Today: 5_000_000, LastEvent: now.Add(-5 * time.Second)},
+			{Source: telemetry.SourceGrok, Key: "website", Label: "website", Tokens15m: 50_000, Today: 1_100_000, LastEvent: now.Add(-54 * time.Second)},
 		},
 		Sessions: []engine.Session{
 			{
@@ -67,35 +78,37 @@ func renderAt(t *testing.T, width, height int, color bool) string {
 
 func TestRenderContainsRegions(t *testing.T) {
 	out := renderAt(t, 100, 24, false)
-	for _, want := range []string{"TOKEN TOP", "BURN", "ACTIVE", "CLAUDE", "CODEX", "GROK", "acme", "trailing completed usage", "q quit"} {
+	for _, want := range []string{"TOKEN TOP", "TODAY", "INPUT", "OUTPUT", "RECENT", "HARNESS", "CLAUDE", "CODEX", "GROK", "PROJECT", "acme", "q quit"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("missing %q in\n%s", want, out)
 		}
 	}
 }
 
-func TestRenderNarrowDropsModel(t *testing.T) {
+func TestRenderNarrowUsesAbbreviatedHarness(t *testing.T) {
 	out := renderAt(t, 70, 24, false)
-	if strings.Contains(out, "gpt-5.6-sol") {
-		t.Fatalf("narrow still has model\n%s", out)
-	}
-	if !strings.Contains(out, "cdx") {
+	if !strings.Contains(out, "CDX") || !strings.Contains(out, "cdx") {
 		t.Fatalf("narrow missing abbreviated harness\n%s", out)
 	}
 }
 
-func TestRenderWideHasExtraColumns(t *testing.T) {
+func TestRenderWideKeepsLeanColumns(t *testing.T) {
 	out := renderAt(t, 160, 24, false)
-	for _, want := range []string{"15M", "IN", "OUT", "LAST", "AGE", "SID", "aaaaaaaa"} {
+	for _, want := range []string{"TODAY SHARE", "TODAY", "15M", "LAST"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("wide missing %q in\n%s", want, out)
+		}
+	}
+	for _, reject := range []string{"MODEL", "SID", "AGE", "quiet"} {
+		if strings.Contains(out, reject) {
+			t.Fatalf("wide retained %q in\n%s", reject, out)
 		}
 	}
 }
 
 func TestRenderShortOverflow(t *testing.T) {
 	out := renderAt(t, 100, 12, false)
-	if !strings.Contains(out, "+") || !strings.Contains(out, "more recent") {
+	if !strings.Contains(out, "+") || !strings.Contains(out, "more") {
 		t.Fatalf("expected overflow\n%s", out)
 	}
 }
@@ -110,7 +123,7 @@ func TestRenderEmptyState(t *testing.T) {
 			{Name: telemetry.SourceGrok, Health: telemetry.SourceHealth{State: telemetry.HealthNotDetected}},
 		},
 	}, Options{Width: 80, Height: 24, Now: now, Interval: 2 * time.Second})
-	if !strings.Contains(out, "0 burning") || !strings.Contains(out, "TOKEN TOP") {
+	if !strings.Contains(out, "TODAY  0 processed") || !strings.Contains(out, "TOKEN TOP") {
 		t.Fatalf("%s", out)
 	}
 }
@@ -134,9 +147,8 @@ func TestRenderNoColorHasNoANSI(t *testing.T) {
 
 func TestRenderLongLabelsTruncate(t *testing.T) {
 	snap := testSnap()
-	snap.Sessions[0].ProjectLabel = "AVeryLongProjectNameThatShouldTruncate"
-	snap.Sessions[0].Model = "an-unreasonably-long-model-identifier"
-	out := Render(snap, Options{Width: 100, Height: 24, Now: snap.GeneratedAt, Interval: 2 * time.Second})
+	snap.Attributions[0].Label = "AVeryLongProjectNameThatShouldTruncate"
+	out := Render(snap, Options{Width: 60, Height: 24, Now: snap.GeneratedAt, Interval: 2 * time.Second})
 	if strings.Contains(out, "AVeryLongProjectNameThatShouldTruncate") {
 		t.Fatal("project not truncated")
 	}
@@ -156,15 +168,12 @@ func TestRenderFitsWidth(t *testing.T) {
 	}
 }
 
-func TestRenderIndexingVisible(t *testing.T) {
+func TestRenderHealthyIndexingIsSilent(t *testing.T) {
 	snap := testSnap()
 	snap.Sources[1].Health.Indexing = true
 	out := Render(snap, Options{Width: 120, Height: 24, Now: snap.GeneratedAt, Interval: 2 * time.Second})
-	if !strings.Contains(out, "indexing") {
-		t.Fatalf("%s", out)
-	}
-	if strings.Contains(out, "CODEX !") && strings.Contains(out, "indexing") && strings.Contains(out, "CODEX ! indexing") {
-		t.Fatal("indexing should not look like failure")
+	if strings.Contains(out, "indexing") {
+		t.Fatalf("healthy indexing leaked into default UI\n%s", out)
 	}
 }
 
@@ -172,22 +181,26 @@ func TestRenderTodayApprox(t *testing.T) {
 	snap := testSnap()
 	snap.Global.TodayApprox = true
 	out := Render(snap, Options{Width: 100, Height: 24, Now: snap.GeneratedAt, Interval: 2 * time.Second})
-	if !strings.Contains(out, "TODAY ~") {
+	if !strings.Contains(out, "TODAY  ~") {
 		t.Fatalf("%s", out)
 	}
 }
 
-func TestBarSharesDoesNotFillZeroShare(t *testing.T) {
-	got := barShares([]float64{0.27, 0.73, 0}, 48)
-	if got[2] != 0 {
-		t.Fatalf("zero share got %d: %v", got[2], got)
+func TestHarnessBarsHaveExactPercentages(t *testing.T) {
+	out := renderAt(t, 100, 24, false)
+	for _, want := range []string{"27.2%", "66.8%", "6.0%"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q in\n%s", want, out)
+		}
 	}
-	sum := got[0] + got[1] + got[2]
-	if sum > 48 {
-		t.Fatalf("overflow %d", sum)
-	}
-	if got[0] == 0 || got[1] == 0 {
-		t.Fatalf("positive shares collapsed %v", got)
+}
+
+func TestCacheBreakdownHandlesUnknownCoverage(t *testing.T) {
+	snap := testSnap()
+	snap.Global.TodayCacheKnownInput = 16_000_000
+	out := Render(snap, Options{Width: 100, Height: 24, Now: snap.GeneratedAt})
+	if !strings.Contains(out, "unknown") {
+		t.Fatalf("partial cache coverage presented as exact\n%s", out)
 	}
 }
 

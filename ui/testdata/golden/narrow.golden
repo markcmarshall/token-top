@@ -1,13 +1,19 @@
- TOKEN TOP                                       20:32:14 · refresh 2s
+ TOKEN TOP
 
- BURN     1m 337k/m    5m 221k/m    15m 190k/m    TODAY 18.4M
- ACTIVE   2 burning    1 recent     6 quiet hidden
+ TODAY  18.4M processed
+ INPUT  17.2M
+        13.4M cached + 3.8M uncached · 78.0% cached
+ OUTPUT 1.2M
 
- CLAUDE ✓  92k/m  27%    CODEX ✓  245k/m  73%    GROK ✓  0  0%
- ███████████████████████████████████████████████░
+ RECENT  5M 1.1M · 221K/m   15M 2.9M · 190K/m
 
- S  H    PROJECT             1M     TOTAL   LAST
- ●  cdx  acme            184k/m      4.2M     2s
- ●  cld  payments         92k/m      2.7M     5s
- ·  grk  website              0      1.1M    54s
- trailing completed usage · 6 quiet hidden · q quit
+ H    TODAY SHARE                                      TODAY       15M
+ CLD  ██████████░░░░░░░░░░░░░░░░░░░░░░░░░░░  27.2%        5M        1M
+ CDX  █████████████████████████░░░░░░░░░░░░  66.8%     12.3M      1.8M
+ GRK  ██░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   6.0%      1.1M       50K
+
+ PROJECT                                H       TODAY       15M   LAST
+ acme                                   cdx     12.3M      1.8M     2s
+ payments                               cld        5M        1M     5s
+ website                                grk      1.1M       50K    54s
+ q quit

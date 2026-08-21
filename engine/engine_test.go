@@ -78,6 +78,61 @@ func TestRatesOnFirstSnapshot(t *testing.T) {
 	}
 }
 
+func TestTodayAccountingAndSourceShares(t *testing.T) {
+	clk := testClock()
+	eng := newTestEngine(clk)
+	claude := eventAt("c", "c1", telemetry.SourceClaude, clk.Now(), 100, 20)
+	claude.CacheRead = telemetry.Uint64Ptr(80)
+	codex := eventAt("x", "x1", telemetry.SourceCodex, clk.Now(), 50, 10)
+	applyOne(eng, claude)
+	applyOne(eng, codex)
+
+	snap := eng.Snapshot()
+	if snap.Global.Today != 180 || snap.Global.TodayInput != 150 || snap.Global.TodayOutput != 30 {
+		t.Fatalf("global accounting %+v", snap.Global)
+	}
+	if snap.Global.TodayCacheRead != 80 || snap.Global.TodayCacheKnownInput != 100 {
+		t.Fatalf("cache accounting %+v", snap.Global)
+	}
+	if snap.Global.Tokens5m != 180 || snap.Global.Tokens15m != 180 {
+		t.Fatalf("window totals %+v", snap.Global)
+	}
+	if snap.Sources[0].Today != 120 || snap.Sources[0].ShareToday != 120.0/180 {
+		t.Fatalf("claude source %+v", snap.Sources[0])
+	}
+	if snap.Sources[1].Today != 60 || snap.Sources[1].ShareToday != 60.0/180 {
+		t.Fatalf("codex source %+v", snap.Sources[1])
+	}
+}
+
+func TestAttributionAggregatesAtEventLevel(t *testing.T) {
+	clk := testClock()
+	eng := New(clk, attribution.Func(func(ev telemetry.TokenEvent) attribution.Attribution {
+		label := "alpha"
+		if ev.CWD == "/work/beta" {
+			label = "beta"
+		}
+		return attribution.Attribution{Key: label, Label: label, Method: "test"}
+	}))
+	a := eventAt("a", "same-session", telemetry.SourceClaude, clk.Now().Add(-20*time.Minute), 70, 0)
+	a.CWD = "/work/alpha"
+	b := eventAt("b", "same-session", telemetry.SourceClaude, clk.Now(), 30, 0)
+	b.CWD = "/work/beta"
+	applyOne(eng, b)
+	applyOne(eng, a)
+
+	snap := eng.Snapshot()
+	if len(snap.Attributions) != 2 {
+		t.Fatalf("attributions %+v", snap.Attributions)
+	}
+	if snap.Attributions[0].Label != "beta" || snap.Attributions[0].Today != 30 || snap.Attributions[0].Tokens15m != 30 {
+		t.Fatalf("recent attribution %+v", snap.Attributions[0])
+	}
+	if snap.Attributions[1].Label != "alpha" || snap.Attributions[1].Today != 70 || snap.Attributions[1].Tokens15m != 0 {
+		t.Fatalf("earlier attribution %+v", snap.Attributions[1])
+	}
+}
+
 func TestWindowBoundaries(t *testing.T) {
 	clk := testClock()
 	eng := newTestEngine(clk)
@@ -183,6 +238,9 @@ func TestLocalDayRollover(t *testing.T) {
 	}
 	if snap.Global.Rate15m != 100.0/15 {
 		t.Fatalf("15m %v", snap.Global.Rate15m)
+	}
+	if len(snap.Attributions) != 1 || snap.Attributions[0].Today != 0 || snap.Attributions[0].Tokens15m != 100 {
+		t.Fatalf("recent attribution should survive midnight: %+v", snap.Attributions)
 	}
 }
 

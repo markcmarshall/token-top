@@ -20,14 +20,16 @@ For people who already install Go modules that way. It lands in `$(go env GOPATH
 
 ## What it shows
 
-Live trailing completed token usage for local agent sessions:
+Live completed token usage from local agent telemetry:
 
-- 1-minute, 5-minute, and 15-minute burn
-- which harness, model, and project owns each session
-- input / output / cache composition
+- total tokens processed today, with input and output reconciled
+- cached versus uncached input without counting cache as a third token class
+- 5-minute and 15-minute totals plus average-per-minute rates
+- each harness's exact share of today's processed tokens
+- event-level project attribution, including earlier work that is no longer active
 - whether the source telemetry is healthy enough to trust
 
-Rates come from event timestamps in harness logs, not from screen refresh deltas. Tokens are directional workload counts, not money, quota, or normalized compute.
+Cache reads are a subset of input. Rates come from event timestamps in harness logs, not from screen refresh deltas. Tokens are directional workload counts, not money, quota, or normalized compute.
 
 ## Limitations
 
@@ -35,7 +37,7 @@ Rates come from event timestamps in harness logs, not from screen refresh deltas
 - Passive: `q` and Ctrl-C quit. No sorting, filters, drill-down, or session control.
 - No cost, history, alerts, config file, daemon, or hosted service.
 - Grok updates when a turn completes; missing update logs degrade that source instead of inventing zeros.
-- First-render lifetime totals may show `~` while older files are still indexing.
+- Today totals may show `~` while current-day files are still indexing or a source reports incomplete usage.
 
 ## Privacy
 
@@ -89,7 +91,7 @@ token events
     ↓
 event attribution
     ↓
-session reducer
+work + session reducers
     ↓
 immutable snapshot
     ↓

@@ -1,13 +1,18 @@
- TOKEN TOP                                                                                                                                 20:32:14 · refresh 2s
+ TOKEN TOP
 
- BURN     1m 337k/m    5m 221k/m    15m 190k/m    TODAY 18.4M
- ACTIVE   2 burning    1 recent     6 quiet hidden
+ TODAY  18.4M processed
+ INPUT  17.2M = 13.4M cached + 3.8M uncached · 78.0% cached
+ OUTPUT 1.2M
 
- CLAUDE ✓  92k/m  27%    CODEX ✓  245k/m  73%    GROK ✓  0  0%
- ███████████████████████████████████████████████░
+ RECENT       5M 1.1M · 221K/m       15M 2.9M · 190K/m
 
- S  HARNESS  MODEL           PROJECT                 1M        5M       15M     TOTAL        IN       OUT   CACHE   LAST    AGE       SID
- ●  codex    gpt-5.6-sol     acme                184k/m    121k/m     90k/m      4.2M        3M      1.2M     78%     2s     2h  aaaaaaaa
- ●  claude   opus-4.8        payments             92k/m     76k/m     40k/m      2.7M         0         0             5s    40m  bbbbbbbb
- ·  grok     grok-4.6        website                  0     18k/m     12k/m      1.1M         0         0            54s     3h  cccccccc
- trailing completed usage · 6 quiet hidden · q quit
+ HARNESS  TODAY SHARE                                                 TODAY       15M
+ CLAUDE   █████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  27.2%        5M        1M
+ CODEX    ████████████████████████████████░░░░░░░░░░░░░░░░  66.8%     12.3M      1.8M
+ GROK     ███░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   6.0%      1.1M       50K
+
+ PROJECT                                                          HARNESS     TODAY       15M   LAST
+ acme                                                             codex       12.3M      1.8M     2s
+ payments                                                         claude         5M        1M     5s
+ website                                                          grok         1.1M       50K    54s
+ q quit

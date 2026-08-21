@@ -35,16 +35,41 @@ type sessionState struct {
 
 type ringItem struct {
 	event telemetry.TokenEvent
+	attr  attribution.Attribution
+}
+
+type usageTotals struct {
+	total           uint64
+	input           uint64
+	output          uint64
+	cacheRead       uint64
+	cacheKnownInput uint64
+}
+
+type attributionKey struct {
+	source telemetry.SourceName
+	key    string
+}
+
+type attributionState struct {
+	attr       attribution.Attribution
+	usage      usageTotals
+	lastEvent  time.Time
+	incomplete bool
 }
 
 type Engine struct {
-	clock      Clock
-	attributor attribution.Attributor
-	seen       map[string]struct{}
-	ring       []ringItem
-	sessions   map[sessionKey]*sessionState
-	health     map[telemetry.SourceName]telemetry.SourceHealth
-	incomplete map[telemetry.SourceName]string
+	clock              Clock
+	attributor         attribution.Attributor
+	seen               map[string]struct{}
+	ring               []ringItem
+	sessions           map[sessionKey]*sessionState
+	health             map[telemetry.SourceName]telemetry.SourceHealth
+	incomplete         map[telemetry.SourceName]string
+	todayDate          string
+	today              usageTotals
+	todayBySource      map[telemetry.SourceName]usageTotals
+	todayByAttribution map[attributionKey]attributionState
 }
 
 func New(clock Clock, attr attribution.Attributor) *Engine {
@@ -59,12 +84,14 @@ func New(clock Clock, attr attribution.Attributor) *Engine {
 		health[name] = telemetry.SourceHealth{Source: name, State: telemetry.HealthNotDetected}
 	}
 	return &Engine{
-		clock:      clock,
-		attributor: attr,
-		seen:       make(map[string]struct{}),
-		sessions:   make(map[sessionKey]*sessionState),
-		health:     health,
-		incomplete: make(map[telemetry.SourceName]string),
+		clock:              clock,
+		attributor:         attr,
+		seen:               make(map[string]struct{}),
+		sessions:           make(map[sessionKey]*sessionState),
+		health:             health,
+		incomplete:         make(map[telemetry.SourceName]string),
+		todayBySource:      make(map[telemetry.SourceName]usageTotals),
+		todayByAttribution: make(map[attributionKey]attributionState),
 	}
 }
 
@@ -210,15 +237,16 @@ func (e *Engine) ingest(ev telemetry.TokenEvent, now time.Time) {
 		nextToday = sess.today
 	}
 
+	nextCacheRead, nextCacheReadIn := sess.cacheRead, sess.cacheReadIn
 	if ev.CacheRead != nil {
-		nextRead, ok1 := telemetry.AddUint64(sess.cacheRead, *ev.CacheRead)
-		nextIn, ok2 := telemetry.AddUint64(sess.cacheReadIn, ev.Input)
+		nextRead, ok1 := telemetry.AddUint64(nextCacheRead, *ev.CacheRead)
+		nextIn, ok2 := telemetry.AddUint64(nextCacheReadIn, ev.Input)
 		if !ok1 || !ok2 {
 			e.degrade(ev.Source, "usage overflow")
 			return
 		}
-		sess.cacheRead = nextRead
-		sess.cacheReadIn = nextIn
+		nextCacheRead = nextRead
+		nextCacheReadIn = nextIn
 	}
 
 	nextIn, okIn := telemetry.AddUint64(sess.input, ev.Input)
@@ -228,18 +256,56 @@ func (e *Engine) ingest(ev telemetry.TokenEvent, now time.Time) {
 		return
 	}
 
+	attr := e.attributor.Attribute(ev)
+	var nextGlobalToday, nextSourceToday usageTotals
+	var attrKey attributionKey
+	var nextAttrToday attributionState
+	if telemetry.LocalDate(ev.Timestamp) == todayDate {
+		nextGlobalToday, ok = addUsage(e.today, ev)
+		if !ok {
+			e.degrade(ev.Source, "usage overflow")
+			return
+		}
+		nextSourceToday, ok = addUsage(e.todayBySource[ev.Source], ev)
+		if !ok {
+			e.degrade(ev.Source, "usage overflow")
+			return
+		}
+		attrKey = attributionKey{source: ev.Source, key: stableAttributionKey(attr)}
+		nextAttrToday = e.todayByAttribution[attrKey]
+		nextAttrToday.usage, ok = addUsage(nextAttrToday.usage, ev)
+		if !ok {
+			e.degrade(ev.Source, "usage overflow")
+			return
+		}
+		if nextAttrToday.lastEvent.IsZero() || ev.Timestamp.After(nextAttrToday.lastEvent) || ev.Timestamp.Equal(nextAttrToday.lastEvent) {
+			nextAttrToday.attr = attr
+			nextAttrToday.lastEvent = ev.Timestamp
+		}
+		if !ev.Complete {
+			nextAttrToday.incomplete = true
+		}
+	}
+
 	e.seen[ev.ID] = struct{}{}
 	sess.lifetime = nextLife
 	sess.today = nextToday
 	sess.input = nextIn
 	sess.output = nextOut
+	sess.cacheRead = nextCacheRead
+	sess.cacheReadIn = nextCacheReadIn
+	if telemetry.LocalDate(ev.Timestamp) == todayDate {
+		e.today = nextGlobalToday
+		e.todayBySource[ev.Source] = nextSourceToday
+		e.todayByAttribution[attrKey] = nextAttrToday
+	}
 	if sess.firstEvent.IsZero() || ev.Timestamp.Before(sess.firstEvent) {
 		sess.firstEvent = ev.Timestamp
 	}
 	if sess.lastEvent.IsZero() || ev.Timestamp.After(sess.lastEvent) || ev.Timestamp.Equal(sess.lastEvent) {
 		sess.lastEvent = ev.Timestamp
 		sess.model = ev.Model
-		sess.attr = e.attributor.Attribute(ev)
+		sess.attr = attr
 	}
 	if ev.Model != "" {
 		sess.models[ev.Model] = struct{}{}
@@ -256,7 +322,7 @@ func (e *Engine) ingest(ev telemetry.TokenEvent, now time.Time) {
 		}
 	}
 
-	e.ring = append(e.ring, ringItem{event: ev})
+	e.ring = append(e.ring, ringItem{event: ev, attr: attr})
 }
 
 func (e *Engine) Snapshot() Snapshot {
@@ -271,6 +337,8 @@ func (e *Engine) Snapshot() Snapshot {
 	global := acc{}
 	bySource := make(map[telemetry.SourceName]*acc, len(telemetry.AllSources))
 	bySession := make(map[sessionKey]*acc, len(e.sessions))
+	byAttribution := make(map[attributionKey]*acc, len(e.todayByAttribution))
+	recentAttribution := make(map[attributionKey]attributionState)
 	for _, name := range telemetry.AllSources {
 		bySource[name] = &acc{}
 	}
@@ -290,13 +358,24 @@ func (e *Engine) Snapshot() Snapshot {
 			bySource[src] = &acc{}
 		}
 		key := sessionKey{source: src, id: item.event.SessionID}
+		attrKey := attributionKey{source: src, key: stableAttributionKey(item.attr)}
 		if bySession[key] == nil {
 			bySession[key] = &acc{}
 		}
+		if byAttribution[attrKey] == nil {
+			byAttribution[attrKey] = &acc{}
+		}
+		recentState := recentAttribution[attrKey]
+		if recentState.lastEvent.IsZero() || ts.After(recentState.lastEvent) || ts.Equal(recentState.lastEvent) {
+			recentState.attr = item.attr
+			recentState.lastEvent = ts
+		}
+		recentAttribution[attrKey] = recentState
 		if !ts.Before(start15) {
 			addTok(&global.tok15, total)
 			addTok(&bySource[src].tok15, total)
 			addTok(&bySession[key].tok15, total)
+			addTok(&byAttribution[attrKey].tok15, total)
 			global.n15++
 			bySession[key].n15++
 		}
@@ -314,7 +393,6 @@ func (e *Engine) Snapshot() Snapshot {
 		}
 	}
 
-	var today uint64
 	var todayApprox bool
 	var burning, recent, quietHidden int
 	visible := make([]Session, 0, len(e.sessions))
@@ -323,8 +401,6 @@ func (e *Engine) Snapshot() Snapshot {
 			sess.today = 0
 			sess.todayDate = telemetry.LocalDate(now)
 		}
-		today = satAdd(today, sess.today)
-
 		win := bySession[key]
 		if win == nil {
 			win = &acc{}
@@ -407,43 +483,147 @@ func (e *Engine) Snapshot() Snapshot {
 			win = &acc{}
 		}
 		rate1 := ratePerMinute(win.tok1, Window1m)
-		share := 0.0
+		share1 := 0.0
 		if globalRate1 > 0 {
-			share = rate1 / globalRate1
+			share1 = rate1 / globalRate1
+		}
+		todaySource := e.todayBySource[name]
+		shareToday := 0.0
+		if e.today.total > 0 {
+			shareToday = float64(todaySource.total) / float64(e.today.total)
 		}
 		sources = append(sources, SourceSnapshot{
-			Name:    name,
-			Health:  h,
-			Rate1m:  rate1,
-			Share1m: share,
+			Name:       name,
+			Health:     h,
+			Rate1m:     rate1,
+			Share1m:    share1,
+			Tokens15m:  win.tok15,
+			Today:      todaySource.total,
+			ShareToday: shareToday,
 		})
 	}
+
+	allAttributions := make(map[attributionKey]attributionState, len(e.todayByAttribution)+len(recentAttribution))
+	for key, state := range recentAttribution {
+		allAttributions[key] = state
+	}
+	for key, state := range e.todayByAttribution {
+		allAttributions[key] = state
+	}
+	attributions := make([]AttributionSnapshot, 0, len(allAttributions))
+	for key, state := range allAttributions {
+		win := byAttribution[key]
+		var tokens15 uint64
+		if win != nil {
+			tokens15 = win.tok15
+		}
+		label := state.attr.Label
+		if label == "" {
+			label = "unattributed"
+		}
+		attributions = append(attributions, AttributionSnapshot{
+			Source:      key.source,
+			Key:         state.attr.Key,
+			Label:       label,
+			Method:      state.attr.Method,
+			Tokens15m:   tokens15,
+			Today:       state.usage.total,
+			TodayApprox: state.incomplete || e.health[key.source].TodayIncomplete,
+			LastEvent:   state.lastEvent,
+		})
+	}
+	sort.SliceStable(attributions, func(i, j int) bool {
+		a, b := attributions[i], attributions[j]
+		aRecent, bRecent := a.Tokens15m > 0, b.Tokens15m > 0
+		if aRecent != bRecent {
+			return aRecent
+		}
+		if a.Today != b.Today {
+			return a.Today > b.Today
+		}
+		if !a.LastEvent.Equal(b.LastEvent) {
+			return a.LastEvent.After(b.LastEvent)
+		}
+		if a.Label != b.Label {
+			return a.Label < b.Label
+		}
+		return a.Source < b.Source
+	})
 
 	return Snapshot{
 		GeneratedAt: now,
 		Global: Global{
-			Rate1m:      globalRate1,
-			Rate5m:      ratePerMinute(global.tok5, Window5m),
-			Rate15m:     ratePerMinute(global.tok15, Window15m),
-			Today:       today,
-			TodayApprox: todayApprox,
-			Burning:     burning,
-			Recent:      recent,
+			Rate1m:               globalRate1,
+			Rate5m:               ratePerMinute(global.tok5, Window5m),
+			Rate15m:              ratePerMinute(global.tok15, Window15m),
+			Tokens5m:             global.tok5,
+			Tokens15m:            global.tok15,
+			Today:                e.today.total,
+			TodayInput:           e.today.input,
+			TodayOutput:          e.today.output,
+			TodayCacheRead:       e.today.cacheRead,
+			TodayCacheKnownInput: e.today.cacheKnownInput,
+			TodayApprox:          todayApprox,
+			Burning:              burning,
+			Recent:               recent,
 		},
-		Sources:     sources,
-		Sessions:    visible,
-		QuietHidden: quietHidden,
+		Sources:      sources,
+		Attributions: attributions,
+		Sessions:     visible,
+		QuietHidden:  quietHidden,
 	}
 }
 
 func (e *Engine) rollToday(now time.Time) {
 	today := telemetry.LocalDate(now)
+	if e.todayDate != today {
+		e.todayDate = today
+		e.today = usageTotals{}
+		e.todayBySource = make(map[telemetry.SourceName]usageTotals)
+		e.todayByAttribution = make(map[attributionKey]attributionState)
+	}
 	for _, sess := range e.sessions {
 		if sess.todayDate != today {
 			sess.today = 0
 			sess.todayDate = today
 		}
 	}
+}
+
+func addUsage(current usageTotals, ev telemetry.TokenEvent) (usageTotals, bool) {
+	total, ok := telemetry.AddUint64(ev.Input, ev.Output)
+	if !ok {
+		return usageTotals{}, false
+	}
+	next := current
+	if next.total, ok = telemetry.AddUint64(next.total, total); !ok {
+		return usageTotals{}, false
+	}
+	if next.input, ok = telemetry.AddUint64(next.input, ev.Input); !ok {
+		return usageTotals{}, false
+	}
+	if next.output, ok = telemetry.AddUint64(next.output, ev.Output); !ok {
+		return usageTotals{}, false
+	}
+	if ev.CacheRead != nil {
+		if next.cacheRead, ok = telemetry.AddUint64(next.cacheRead, *ev.CacheRead); !ok {
+			return usageTotals{}, false
+		}
+		if next.cacheKnownInput, ok = telemetry.AddUint64(next.cacheKnownInput, ev.Input); !ok {
+			return usageTotals{}, false
+		}
+	}
+	return next, true
+}
+
+func stableAttributionKey(attr attribution.Attribution) string {
+	if attr.Key != "" {
+		return attr.Key
+	}
+	if attr.Label != "" {
+		return attr.Label
+	}
+	return "unattributed"
 }
 
 func (e *Engine) prune(now time.Time) {

@@ -19,6 +19,7 @@ func TestRenderGoldens(t *testing.T) {
 		snap engine.Snapshot
 	}{
 		{"narrow", 70, 24, testSnap()},
+		{"standard", 80, 24, testSnap()},
 		{"normal", 100, 24, testSnap()},
 		{"wide", 160, 24, testSnap()},
 		{"short", 100, 12, testSnap()},
@@ -64,7 +65,13 @@ func oneSourceSnap() engine.Snapshot {
 	snap := testSnap()
 	snap.Sources = []engine.SourceSnapshot{snap.Sources[1]}
 	snap.Sources[0].Share1m = 1
+	snap.Sources[0].ShareToday = 1
+	snap.Sources[0].Today = snap.Global.Today
+	snap.Sources[0].Tokens15m = snap.Global.Tokens15m
 	snap.Sessions = snap.Sessions[:1]
+	snap.Attributions = snap.Attributions[:1]
+	snap.Attributions[0].Today = snap.Global.Today
+	snap.Attributions[0].Tokens15m = snap.Global.Tokens15m
 	snap.Global.Burning = 1
 	snap.Global.Recent = 0
 	return snap
@@ -80,6 +87,16 @@ func degradedSnap() engine.Snapshot {
 func hugeSnap() engine.Snapshot {
 	snap := testSnap()
 	snap.Global.Today = 18_400_000_000
+	snap.Global.TodayInput = 17_200_000_000
+	snap.Global.TodayOutput = 1_200_000_000
+	snap.Global.TodayCacheRead = 13_416_000_000
+	snap.Global.TodayCacheKnownInput = 17_200_000_000
+	snap.Global.Tokens5m = 1_105_000_000
+	snap.Global.Tokens15m = 2_850_000_000
+	snap.Sources[0].Today = 5_000_000_000
+	snap.Sources[1].Today = 12_300_000_000
+	snap.Sources[2].Today = 1_100_000_000
+	snap.Attributions[0].Today = 12_300_000_000
 	snap.Sessions[0].Total = 9_900_000_000
 	snap.Sessions[0].Rate1m = 12_300_000
 	return snap

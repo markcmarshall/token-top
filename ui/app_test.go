@@ -66,6 +66,14 @@ func TestViewUsesAltScreen(t *testing.T) {
 	}
 }
 
+func TestViewSupportsPrivateAttributionHeader(t *testing.T) {
+	m := testModel().WithAttributionHeader("CLAIM")
+	m.snap = engine.Snapshot{GeneratedAt: time.Date(2026, 8, 16, 20, 32, 14, 0, time.UTC)}
+	if !strings.Contains(m.View().Content, "CLAIM") {
+		t.Fatalf("view %q", m.View().Content)
+	}
+}
+
 func TestResizeUpdatesBounds(t *testing.T) {
 	m := testModel()
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})

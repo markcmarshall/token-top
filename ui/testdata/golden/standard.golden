@@ -1,0 +1,18 @@
+ TOKEN TOP
+
+ TODAY  18.4M processed
+ INPUT  17.2M = 13.4M cached + 3.8M uncached · 78.0% cached
+ OUTPUT 1.2M
+
+ RECENT       5M 1.1M · 221K/m       15M 2.9M · 190K/m
+
+ HARNESS  TODAY SHARE                                            TODAY       15M
+ CLAUDE   ████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  27.2%        5M        1M
+ CODEX    █████████████████████████████░░░░░░░░░░░░░░  66.8%     12.3M      1.8M
+ GROK     ███░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   6.0%      1.1M       50K
+
+ PROJECT                                      HARNESS     TODAY       15M   LAST
+ acme                                         codex       12.3M      1.8M     2s
+ payments                                     claude         5M        1M     5s
+ website                                      grok         1.1M       50K    54s
+ q quit
