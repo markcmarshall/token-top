@@ -12,7 +12,7 @@ mkdir -p "$fixture_dir" "$fake_bin"
 cat > "$fixture_dir/ttop-darwin-arm64" <<'EOF'
 #!/bin/sh
 if [ "${1:-}" = "--version" ]; then
-  echo "v-test"
+  echo "v1.1.1"
 fi
 EOF
 chmod 0755 "$fixture_dir/ttop-darwin-arm64"

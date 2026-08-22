@@ -41,6 +41,14 @@ if [ -n "$resolved_before" ] && [ "$resolved_before" != "${PREFIX}/ttop" ]; then
         echo "ttop: legacy install ${resolved_before} is not writable; cannot migrate it" >&2
         exit 1
       fi
+      legacy_version=$("$resolved_before" --version 2>/dev/null || true)
+      case "$legacy_version" in
+        v[0-9]*) ;;
+        *)
+          echo "ttop: ${resolved_before} is not a recognized Token Top release; refusing to remove it" >&2
+          exit 1
+          ;;
+      esac
       legacy_install="$resolved_before"
       ;;
     *)
@@ -127,6 +135,8 @@ if ! on_path "$PREFIX"; then
       bash)
         if [ -f "$HOME/.bash_profile" ]; then
           profile="$HOME/.bash_profile"
+        elif [ -f "$HOME/.bash_login" ]; then
+          profile="$HOME/.bash_login"
         else
           profile="$HOME/.profile"
         fi
