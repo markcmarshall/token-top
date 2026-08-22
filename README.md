@@ -10,7 +10,7 @@ Open a terminal tab, glance, know what is burning.
 curl -fsSL https://raw.githubusercontent.com/markcmarshall/token-top/main/install.sh | sh
 ```
 
-Installs the latest release binary. If `ttop` already resolves on PATH, the installer updates that copy rather than placing a newer binary behind it. Otherwise it uses the first writable managed directory on PATH (`/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, or `~/bin`). It fails loudly if an existing command cannot be replaced. Override the destination with `PREFIX`; for a reproducible install, set `VERSION` to an exact release tag.
+Installs the latest release binary to `~/.local/bin`. If that directory is not on PATH, the installer adds it once to the standard zsh or bash profile; set `TTOP_NO_MODIFY_PATH=1` to leave shell files untouched. Old standalone installs in `/opt/homebrew/bin`, `/usr/local/bin`, or `~/bin` are migrated when safe, while symlinks owned by package managers are never replaced. Override the destination with `PREFIX`; for a reproducible install, set `VERSION` to an exact release tag.
 
 ```text
 go install github.com/markcmarshall/token-top/cmd/ttop@latest
