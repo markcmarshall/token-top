@@ -21,6 +21,9 @@ jobs:
       - name: gofmt
         run: test -z "$(gofmt -l .)"
 
+      - name: installer syntax
+        run: sh -n install.sh
+
       - name: go vet
         run: go vet ./...
 
