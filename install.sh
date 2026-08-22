@@ -4,7 +4,7 @@
 set -eu
 
 REPO="markcmarshall/token-top"
-VERSION="${VERSION:-v1.0.2}"
+VERSION="${VERSION:-latest}"
 
 on_path() {
   case ":$PATH:" in
@@ -22,6 +22,32 @@ pick_prefix() {
     printf '%s\n' "$PREFIX"
     return
   fi
+
+  # Update the command the shell already resolves. Installing a second copy
+  # later on PATH reports success but leaves the old binary active.
+  existing=$(command -v ttop 2>/dev/null || true)
+  case "$existing" in
+    /*/ttop)
+      dir=${existing%/ttop}
+      case "$dir" in
+        /opt/homebrew/bin|/usr/local/bin|"$HOME/.local/bin"|"$HOME/bin")
+          if writable_dir "$dir" || [ -w "$existing" ]; then
+            printf '%s\n' "$dir"
+            return
+          fi
+          echo "ttop: existing ${existing} is not writable; refusing to install a shadowed copy" >&2
+          echo "ttop: rerun with permission to replace it, or set PREFIX explicitly" >&2
+          exit 1
+          ;;
+        *)
+          echo "ttop: existing ${existing} is outside the managed install directories" >&2
+          echo "ttop: set PREFIX=${dir} explicitly to replace it" >&2
+          exit 1
+          ;;
+      esac
+      ;;
+  esac
+
   # First allowlisted dir already on PATH, in PATH order.
   oldifs=$IFS
   IFS=:
@@ -42,6 +68,12 @@ pick_prefix() {
 }
 
 PREFIX=$(pick_prefix)
+resolved_before=$(command -v ttop 2>/dev/null || true)
+if [ -n "$resolved_before" ] && [ "$resolved_before" != "${PREFIX}/ttop" ]; then
+  echo "ttop: ${PREFIX}/ttop would be shadowed by ${resolved_before}" >&2
+  echo "ttop: choose PREFIX=${resolved_before%/ttop} or remove the conflicting command" >&2
+  exit 1
+fi
 
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
 arch=$(uname -m)
@@ -62,7 +94,11 @@ case "$arch" in
 esac
 
 asset="ttop-${os}-${arch}"
-base="https://github.com/${REPO}/releases/download/${VERSION}"
+if [ "$VERSION" = "latest" ]; then
+  base="https://github.com/${REPO}/releases/latest/download"
+else
+  base="https://github.com/${REPO}/releases/download/${VERSION}"
+fi
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
@@ -96,9 +132,18 @@ if [ "$got" != "$expected" ]; then
 fi
 
 mkdir -p "$PREFIX"
-install -m 0755 "${tmp}/${asset}" "${PREFIX}/ttop"
+if writable_dir "$PREFIX"; then
+  install -m 0755 "${tmp}/${asset}" "${PREFIX}/ttop"
+elif [ -w "${PREFIX}/ttop" ]; then
+  # Some package-manager bin directories are not writable even though the
+  # user owns the existing executable. Replace its contents in place.
+  cat "${tmp}/${asset}" > "${PREFIX}/ttop"
+  chmod 0755 "${PREFIX}/ttop"
+else
+  echo "ttop: cannot write ${PREFIX}/ttop" >&2
+  exit 1
+fi
 
-echo "installed ${VERSION} -> ${PREFIX}/ttop"
 case ":$PATH:" in
   *":${PREFIX}:"*) ;;
   *)
@@ -107,4 +152,11 @@ case ":$PATH:" in
     exit 1
     ;;
 esac
-"${PREFIX}/ttop" --version
+resolved=$(command -v ttop 2>/dev/null || true)
+if [ "$resolved" != "${PREFIX}/ttop" ]; then
+  echo "ttop: installed ${PREFIX}/ttop, but your shell resolves ${resolved:-no ttop}" >&2
+  echo "ttop: refusing to report a shadowed install as successful" >&2
+  exit 1
+fi
+installed_version=$("${PREFIX}/ttop" --version)
+echo "installed ${installed_version} -> ${PREFIX}/ttop"
