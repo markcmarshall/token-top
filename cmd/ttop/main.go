@@ -5,11 +5,23 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime/debug"
 	"time"
 )
 
 // Set by release builds via -ldflags "-X main.version=...".
 var version = "dev"
+var readBuildInfo = debug.ReadBuildInfo
+
+func resolvedVersion() string {
+	if version != "dev" {
+		return version
+	}
+	if info, ok := readBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return version
+}
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -39,7 +51,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if *showVersion {
-		fmt.Fprintln(stdout, version)
+		fmt.Fprintln(stdout, resolvedVersion())
 		return 0
 	}
 
