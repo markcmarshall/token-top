@@ -10,10 +10,10 @@ Open a terminal tab, glance, know what is burning.
 curl -fsSL https://raw.githubusercontent.com/markcmarshall/token-top/main/install.sh | sh
 ```
 
-Installs the latest release binary. If `ttop` already resolves on PATH, the installer updates that copy rather than placing a newer binary behind it. Otherwise it uses the first writable managed directory on PATH (`/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, or `~/bin`). It fails loudly if an existing command cannot be replaced. Override with `PREFIX` or an exact tag such as `VERSION=v1.1.0`.
+Installs the latest release binary. If `ttop` already resolves on PATH, the installer updates that copy rather than placing a newer binary behind it. Otherwise it uses the first writable managed directory on PATH (`/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`, or `~/bin`). It fails loudly if an existing command cannot be replaced. Override the destination with `PREFIX`; for a reproducible install, set `VERSION` to an exact release tag.
 
 ```text
-go install github.com/markcmarshall/token-top/cmd/ttop@v1.1.0
+go install github.com/markcmarshall/token-top/cmd/ttop@latest
 ```
 
 For people who already install Go modules that way. It lands in `$(go env GOPATH)/bin`. Prebuilt binaries are also on the [releases](https://github.com/markcmarshall/token-top/releases) page.
