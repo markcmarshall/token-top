@@ -1,10 +1,13 @@
 #!/bin/sh
-# Install the release binary into a directory already on PATH.
-# Override with PREFIX=... or VERSION=...
+# Install the latest release binary for the current user.
+# Override with PREFIX=..., VERSION=..., or TTOP_NO_MODIFY_PATH=1.
 set -eu
 
 REPO="markcmarshall/token-top"
 VERSION="${VERSION:-latest}"
+DEFAULT_PREFIX="$HOME/.local/bin"
+PREFIX_WAS_SET="${PREFIX+x}"
+PREFIX="${PREFIX:-$DEFAULT_PREFIX}"
 
 on_path() {
   case ":$PATH:" in
@@ -17,62 +20,43 @@ writable_dir() {
   [ -d "$1" ] && [ -w "$1" ]
 }
 
-pick_prefix() {
-  if [ -n "${PREFIX:-}" ]; then
-    printf '%s\n' "$PREFIX"
-    return
+resolved_before=$(command -v ttop 2>/dev/null || true)
+legacy_install=""
+
+if [ -n "$resolved_before" ] && [ "$resolved_before" != "${PREFIX}/ttop" ]; then
+  if [ -n "$PREFIX_WAS_SET" ]; then
+    echo "ttop: ${PREFIX}/ttop would be shadowed by ${resolved_before}" >&2
+    echo "ttop: remove the conflicting command or choose PREFIX=${resolved_before%/ttop}" >&2
+    exit 1
   fi
 
-  # Update the command the shell already resolves. Installing a second copy
-  # later on PATH reports success but leaves the old binary active.
-  existing=$(command -v ttop 2>/dev/null || true)
-  case "$existing" in
-    /*/ttop)
-      dir=${existing%/ttop}
-      case "$dir" in
-        /opt/homebrew/bin|/usr/local/bin|"$HOME/.local/bin"|"$HOME/bin")
-          if writable_dir "$dir" || [ -w "$existing" ]; then
-            printf '%s\n' "$dir"
-            return
-          fi
-          echo "ttop: existing ${existing} is not writable; refusing to install a shadowed copy" >&2
-          echo "ttop: rerun with permission to replace it, or set PREFIX explicitly" >&2
-          exit 1
-          ;;
+  case "$resolved_before" in
+    /opt/homebrew/bin/ttop|/usr/local/bin/ttop|"$HOME/bin/ttop")
+      if [ -L "$resolved_before" ]; then
+        echo "ttop: ${resolved_before} is managed by another installer; refusing to replace it" >&2
+        echo "ttop: use that installer to upgrade or uninstall it first" >&2
+        exit 1
+      fi
+      if [ ! -w "$resolved_before" ]; then
+        echo "ttop: legacy install ${resolved_before} is not writable; cannot migrate it" >&2
+        exit 1
+      fi
+      legacy_version=$("$resolved_before" --version 2>/dev/null || true)
+      case "$legacy_version" in
+        v[0-9]*) ;;
         *)
-          echo "ttop: existing ${existing} is outside the managed install directories" >&2
-          echo "ttop: set PREFIX=${dir} explicitly to replace it" >&2
+          echo "ttop: ${resolved_before} is not a recognized Token Top release; refusing to remove it" >&2
           exit 1
           ;;
       esac
+      legacy_install="$resolved_before"
+      ;;
+    *)
+      echo "ttop: existing command ${resolved_before} is outside Token Top's standalone install directory" >&2
+      echo "ttop: remove it or set PREFIX=${resolved_before%/ttop} explicitly to keep using that location" >&2
+      exit 1
       ;;
   esac
-
-  # First allowlisted dir already on PATH, in PATH order.
-  oldifs=$IFS
-  IFS=:
-  for dir in $PATH; do
-    IFS=$oldifs
-    [ -n "$dir" ] || continue
-    case "$dir" in
-      /opt/homebrew/bin|/usr/local/bin|"$HOME/.local/bin"|"$HOME/bin")
-        if writable_dir "$dir" || [ "$dir" = "$HOME/.local/bin" ] || [ "$dir" = "$HOME/bin" ]; then
-          printf '%s\n' "$dir"
-          return
-        fi
-        ;;
-    esac
-  done
-  IFS=$oldifs
-  printf '%s\n' "$HOME/.local/bin"
-}
-
-PREFIX=$(pick_prefix)
-resolved_before=$(command -v ttop 2>/dev/null || true)
-if [ -n "$resolved_before" ] && [ "$resolved_before" != "${PREFIX}/ttop" ]; then
-  echo "ttop: ${PREFIX}/ttop would be shadowed by ${resolved_before}" >&2
-  echo "ttop: choose PREFIX=${resolved_before%/ttop} or remove the conflicting command" >&2
-  exit 1
 fi
 
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -135,8 +119,6 @@ mkdir -p "$PREFIX"
 if writable_dir "$PREFIX"; then
   install -m 0755 "${tmp}/${asset}" "${PREFIX}/ttop"
 elif [ -w "${PREFIX}/ttop" ]; then
-  # Some package-manager bin directories are not writable even though the
-  # user owns the existing executable. Replace its contents in place.
   cat "${tmp}/${asset}" > "${PREFIX}/ttop"
   chmod 0755 "${PREFIX}/ttop"
 else
@@ -144,19 +126,54 @@ else
   exit 1
 fi
 
-case ":$PATH:" in
-  *":${PREFIX}:"*) ;;
-  *)
-    echo "ttop: ${PREFIX} is not on PATH. Add:" >&2
+path_configured=""
+if ! on_path "$PREFIX"; then
+  if [ "$PREFIX" = "$DEFAULT_PREFIX" ] && [ -z "${TTOP_NO_MODIFY_PATH:-}" ]; then
+    profile=""
+    case "${SHELL##*/}" in
+      zsh) profile="$HOME/.zprofile" ;;
+      bash)
+        if [ -f "$HOME/.bash_profile" ]; then
+          profile="$HOME/.bash_profile"
+        elif [ -f "$HOME/.bash_login" ]; then
+          profile="$HOME/.bash_login"
+        else
+          profile="$HOME/.profile"
+        fi
+        ;;
+    esac
+
+    if [ -n "$profile" ]; then
+      path_line='export PATH="$HOME/.local/bin:$PATH"'
+      if ! grep -F "$path_line" "$profile" >/dev/null 2>&1; then
+        printf '\n# Token Top\n%s\n' "$path_line" >> "$profile"
+      fi
+      path_configured="$profile"
+    fi
+  fi
+
+  if [ -z "$path_configured" ] && ! on_path "$PREFIX"; then
+    echo "ttop: ${PREFIX} is not on PATH. Add this to your shell profile:" >&2
     echo "  export PATH=\"${PREFIX}:\$PATH\"" >&2
-    exit 1
-    ;;
-esac
+  fi
+fi
+
+# The installer cannot mutate its parent shell. Put the new binary first for
+# verification here; the profile change takes effect in the next shell.
+PATH="${PREFIX}:$PATH"
+export PATH
 resolved=$(command -v ttop 2>/dev/null || true)
 if [ "$resolved" != "${PREFIX}/ttop" ]; then
-  echo "ttop: installed ${PREFIX}/ttop, but your shell resolves ${resolved:-no ttop}" >&2
-  echo "ttop: refusing to report a shadowed install as successful" >&2
+  echo "ttop: installed ${PREFIX}/ttop, but this process resolves ${resolved:-no ttop}" >&2
   exit 1
 fi
+
 installed_version=$("${PREFIX}/ttop" --version)
+if [ -n "$legacy_install" ]; then
+  rm -f "$legacy_install"
+  echo "migrated ${legacy_install} -> ${PREFIX}/ttop"
+fi
 echo "installed ${installed_version} -> ${PREFIX}/ttop"
+if [ -n "$path_configured" ]; then
+  echo "PATH configured in ${path_configured}; open a new terminal to run ttop"
+fi

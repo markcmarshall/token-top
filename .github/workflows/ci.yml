@@ -24,6 +24,9 @@ jobs:
       - name: installer syntax
         run: sh -n install.sh
 
+      - name: installer behavior
+        run: sh test/install.sh
+
       - name: go vet
         run: go vet ./...
 
